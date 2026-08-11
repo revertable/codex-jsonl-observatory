@@ -6,7 +6,7 @@ Use it for transcript reading, inspecting raw entries and parser diagnostics, or
 
 ## Lineage and release status
 
-Codex JSONL Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/RGJ-sw1123r/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
+Codex JSONL Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
 
 `v0.1.0` is the first public Windows portable release of Codex JSONL Observatory. It is a functional release covering the current product workflow described in [Features](#features), [Reading a session](#reading-a-session), and [Export Worklog](#export-worklog).
 
