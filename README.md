@@ -1,5 +1,7 @@
 # Codex JSONL Observatory
 
+**Language:** English | [한국어](README.ko.md)
+
 Codex JSONL Observatory is a local desktop tool for reading Codex session JSONL files and exporting versionable worklog bundles. Supported session sources include Codex CLI and the Codex Windows app. Built with Rust, Svelte, and Tauri, it processes session data locally.
 
 Use it for transcript reading, capturing a filtered transcript as text, or turning a complete session into structured files that can live with a project workspace, documentation, internal archive, or repository.
@@ -8,7 +10,7 @@ Use it for transcript reading, capturing a filtered transcript as text, or turni
 
 Codex JSONL Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
 
-`v0.1.0` is the first public Windows portable release of Codex JSONL Observatory. It is a functional release covering the current product workflow described in [Features](#features), [Reading a session](#reading-a-session), and [Export Worklog](#export-worklog).
+`v1.0.0` is the current public Windows portable release of Codex JSONL Observatory. It covers the product workflow described in [Features](#features), [Reading a session](#reading-a-session), and [Export Worklog](#export-worklog).
 
 Just download the Windows portable zip, unzip it, and run the app. No server setup, cloud account, or developer environment is required.
 
@@ -54,6 +56,20 @@ Export always uses the full source session, not the currently filtered transcrip
 Directory and file names use local, user-facing time. Original timestamps remain in generated content and metadata where they are available.
 
 > Exported worklogs may contain prompts, local paths, command output, code snippets, and project-specific details. Review a bundle before sharing it.
+
+## Build and run on Windows
+
+To build from a source checkout on Windows, install Node.js with npm and the Rust stable toolchain. From the repository root, double-click `build-and-run.bat` or run:
+
+```text
+build-and-run.bat
+```
+
+The script builds the release application without generating installer bundles, then starts:
+
+```text
+frontend\src-tauri\target\release\codex-jsonl-observatory.exe
+```
 
 ## Runtime and development
 
