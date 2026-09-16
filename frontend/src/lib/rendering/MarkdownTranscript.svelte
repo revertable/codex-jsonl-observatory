@@ -1,10 +1,6 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import type {
-    LoadedFileMetadataDto,
-    ObservedEventCountDto,
-    TranscriptBlockDto,
-  } from '../parse-contract'
+  import type { ObservedEventCountDto, TranscriptBlockDto } from '../parse-contract'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
 
@@ -13,12 +9,11 @@
   interface Props {
     theme: TranscriptThemeName
     isLoaded: boolean
-    metadata: LoadedFileMetadataDto | null
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
   }
 
-  let { theme, isLoaded, metadata, observedEventCounts, blocks }: Props = $props()
+  let { theme, isLoaded, observedEventCounts, blocks }: Props = $props()
   let collapsedBlocks = $state<Record<number, boolean>>({})
 
   const displayedEventCounts = $derived(
@@ -39,13 +34,7 @@
   <header class="markdown-document-header">
     <p class="markdown-kicker">Markdown Style</p>
     <h2>Codex JSONL Observatory</h2>
-    {#if isLoaded && metadata !== null}
-      <dl class="markdown-metadata">
-        <div><dt>File</dt><dd>{metadata.file_name ?? 'Not detected'}</dd></div>
-        <div><dt>Path</dt><dd>{metadata.absolute_path}</dd></div>
-        <div><dt>Session ID</dt><dd>{metadata.session_id ?? 'Not detected'}</dd></div>
-      </dl>
-    {:else}
+    {#if !isLoaded}
       <div class="markdown-empty-state">
         <p>Ready.</p>
         <p>Codex JSONL Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</p>
@@ -59,7 +48,7 @@
     {/if}
   </header>
 
-  {#if isLoaded && metadata !== null}
+  {#if isLoaded}
     {#if blocks.length === 0}
       <section class="markdown-notice">
         <p>No renderable chat messages found in this JSONL file.</p>

@@ -1,10 +1,6 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import type {
-    LoadedFileMetadataDto,
-    ObservedEventCountDto,
-    TranscriptBlockDto,
-  } from '../parse-contract'
+  import type { ObservedEventCountDto, TranscriptBlockDto } from '../parse-contract'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
 
@@ -14,12 +10,11 @@
     theme: TranscriptThemeName
     isLoaded: boolean
     showIdentityNote: boolean
-    metadata: LoadedFileMetadataDto | null
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
   }
 
-  let { theme, isLoaded, showIdentityNote, metadata, observedEventCounts, blocks }: Props = $props()
+  let { theme, isLoaded, showIdentityNote, observedEventCounts, blocks }: Props = $props()
   let collapsedBlocks = $state<Record<number, boolean>>({})
 
   const separator = '========================================================================'
@@ -51,7 +46,7 @@
   <div class="terminal-title">Codex JSONL Observatory</div>
   <div class="terminal-blank" aria-hidden="true"></div>
 
-  {#if !isLoaded || metadata === null}
+  {#if !isLoaded}
     <div>Ready.</div>
     <div class="terminal-blank" aria-hidden="true"></div>
     {#if showIdentityNote}
@@ -62,10 +57,6 @@
     {/if}
     <div class="terminal-metadata">Current theme: {theme}</div>
   {:else}
-    <div class="terminal-metadata">File: {metadata.file_name ?? 'Not detected'}</div>
-    <div class="terminal-metadata">Path: {metadata.absolute_path}</div>
-    <div class="terminal-metadata">Session ID: {metadata.session_id ?? 'Not detected'}</div>
-    <div class="terminal-blank" aria-hidden="true"></div>
     <div class="terminal-separator">{separator}</div>
     <div class="terminal-blank" aria-hidden="true"></div>
 

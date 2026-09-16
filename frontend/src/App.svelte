@@ -15,7 +15,6 @@
     selectJsonlPath,
     selectWorklogParentDirectory,
   } from './lib/tauri-bridge'
-  import RenderedEntry from './lib/rendering/RenderedEntry.svelte'
   import ChatTranscript from './lib/rendering/ChatTranscript.svelte'
   import MarkdownTranscript from './lib/rendering/MarkdownTranscript.svelte'
   import TerminalTranscript from './lib/rendering/TerminalTranscript.svelte'
@@ -24,15 +23,14 @@
     transcriptThemes,
     type TranscriptThemeName,
   } from './lib/rendering/transcript-themes'
-  import type { ApiErrorDto, LoadedFileMetadataDto } from './lib/parse-contract'
+  import type { ApiErrorDto } from './lib/parse-contract'
 
   let workflow: LoadWorkflowState = createInitialLoadWorkflowState()
   let actionStatusMessage = ''
+  let transcriptActionStatusMessage = ''
   let isExportingWorklog = false
-  let rawEntriesPage = 1
+  let transcriptElement: HTMLElement | null = null
   let selectedTheme: TranscriptThemeName = 'Terminal Style'
-
-  const RAW_ENTRIES_PAGE_SIZE = 50
 
   const filterOptions = [
     ['show_you', 'You'],
@@ -46,7 +44,7 @@
     const target = event.currentTarget as HTMLInputElement
     workflow = selectPath(workflow, target.value)
     actionStatusMessage = ''
-    rawEntriesPage = 1
+    transcriptActionStatusMessage = ''
   }
 
   async function chooseJsonlPath() {
@@ -55,7 +53,7 @@
     if (selectedPath !== null) {
       workflow = selectPath(workflow, selectedPath)
       actionStatusMessage = ''
-      rawEntriesPage = 1
+      transcriptActionStatusMessage = ''
       await loadSelectedJsonl(selectedPath)
     }
   }
@@ -68,7 +66,7 @@
     }
 
     workflow = beginLoad(workflow)
-    rawEntriesPage = 1
+    transcriptActionStatusMessage = ''
 
     try {
       const response = await parseSelectedJsonl(path, defaultFilterState)
@@ -83,62 +81,24 @@
   function handleFilterInput(key: keyof LoadWorkflowState['filter'], event: Event) {
     const target = event.currentTarget as HTMLInputElement
     workflow = updateFilter(workflow, key, target.checked)
-    rawEntriesPage = 1
+    transcriptActionStatusMessage = ''
   }
 
   function handleThemeInput(event: Event) {
     const target = event.currentTarget as HTMLSelectElement
     selectedTheme = target.value as TranscriptThemeName
+    transcriptActionStatusMessage = ''
   }
 
-  function rawEntriesPageCount() {
-    return Math.max(1, Math.ceil(workflow.observations.entries.length / RAW_ENTRIES_PAGE_SIZE))
-  }
-
-  function rawEntriesPageStartIndex() {
-    return (rawEntriesPage - 1) * RAW_ENTRIES_PAGE_SIZE
-  }
-
-  function paginatedRawEntries() {
-    const start = rawEntriesPageStartIndex()
-    return workflow.observations.entries.slice(start, start + RAW_ENTRIES_PAGE_SIZE)
-  }
-
-  function rawEntriesShowingStart() {
-    return workflow.observations.entries.length === 0 ? 0 : rawEntriesPageStartIndex() + 1
-  }
-
-  function rawEntriesShowingEnd() {
-    return Math.min(
-      rawEntriesPageStartIndex() + RAW_ENTRIES_PAGE_SIZE,
-      workflow.observations.entries.length,
-    )
-  }
-
-  function showPreviousRawEntriesPage() {
-    rawEntriesPage = Math.max(1, rawEntriesPage - 1)
-  }
-
-  function showNextRawEntriesPage() {
-    rawEntriesPage = Math.min(rawEntriesPageCount(), rawEntriesPage + 1)
-  }
-
-  function displayedAbsolutePath() {
-    const path = workflow.loaded_file.metadata?.absolute_path ?? workflow.selected_file.path
-    return path === '' ? 'None' : displayFriendlyPath(path)
-  }
-
-  function displayedMetadata(): LoadedFileMetadataDto | null {
-    const metadata = workflow.loaded_file.metadata
-
-    if (metadata === null) {
-      return null
+  function resetToIdle() {
+    if (isExportingWorklog) {
+      return
     }
 
-    return {
-      ...metadata,
-      absolute_path: displayFriendlyPath(metadata.absolute_path),
-    }
+    workflow = createInitialLoadWorkflowState()
+    actionStatusMessage = ''
+    transcriptActionStatusMessage = ''
+    selectedTheme = 'Terminal Style'
   }
 
   function displayFriendlyPath(path: string) {
@@ -174,6 +134,30 @@
       actionStatusMessage = 'Copied.'
     } catch {
       actionStatusMessage = 'Copy failed.'
+    }
+  }
+
+  async function captureTranscript() {
+    if (workflow.status !== 'loaded' || transcriptElement === null) {
+      return
+    }
+
+    const transcriptText = transcriptElement.innerText.trim()
+
+    if (transcriptText === '') {
+      transcriptActionStatusMessage = 'No transcript text available.'
+      return
+    }
+
+    try {
+      if (navigator.clipboard == null) {
+        throw new Error('Clipboard access is unavailable.')
+      }
+
+      await navigator.clipboard.writeText(transcriptText)
+      transcriptActionStatusMessage = 'Transcript captured.'
+    } catch {
+      transcriptActionStatusMessage = 'Capture failed.'
     }
   }
 
@@ -272,7 +256,21 @@
         >
           Refresh
         </button>
-        <span class="status" data-status={workflow.status}>{workflow.status}</span>
+        {#if workflow.status === 'loaded'}
+          <button
+            type="button"
+            class="status status-reset"
+            data-status={workflow.status}
+            aria-label="Reset loaded session"
+            title="Reset to idle"
+            disabled={isExportingWorklog}
+            onclick={resetToIdle}
+          >
+            {workflow.status}
+          </button>
+        {:else}
+          <span class="status" data-status={workflow.status}>{workflow.status}</span>
+        {/if}
       </div>
     </div>
 
@@ -361,6 +359,7 @@
 
   <section class="terminal-section" aria-label="Transcript view">
     <article
+      bind:this={transcriptElement}
       class:terminal-panel={renderPathForTheme(selectedTheme) === 'terminal'}
       class:theme-panel={renderPathForTheme(selectedTheme) !== 'terminal'}
     >
@@ -370,7 +369,6 @@
             theme={selectedTheme}
             isLoaded={workflow.status === 'loaded'}
             showIdentityNote={workflow.status !== 'loaded'}
-            metadata={displayedMetadata()}
             observedEventCounts={workflow.loaded_file.observed_event_counts}
             blocks={workflow.observations.transcript_blocks}
           />
@@ -378,7 +376,6 @@
           <MarkdownTranscript
             theme={selectedTheme}
             isLoaded={workflow.status === 'loaded'}
-            metadata={displayedMetadata()}
             observedEventCounts={workflow.loaded_file.observed_event_counts}
             blocks={workflow.observations.transcript_blocks}
           />
@@ -386,7 +383,6 @@
           <ChatTranscript
             theme={selectedTheme as 'DM Style' | 'DM Style (Dark)'}
             isLoaded={workflow.status === 'loaded'}
-            metadata={displayedMetadata()}
             observedEventCounts={workflow.loaded_file.observed_event_counts}
             blocks={workflow.observations.transcript_blocks}
           />
@@ -395,80 +391,27 @@
     </article>
   </section>
 
-  <details class="secondary-section">
-    <summary>
-      <span>Raw Entries &amp; Diagnostics</span>
-      <span class="count">{workflow.observations.entries.length}</span>
-    </summary>
-
-    <div class="secondary-content">
-      <section aria-labelledby="raw-entries-title">
-        <div class="raw-entries-heading">
-          <h2 id="raw-entries-title">Raw Entries</h2>
-          {#if workflow.observations.entries.length > 0}
-            <div class="raw-entries-pagination" aria-label="Raw Entries pagination">
-              <span>Page {rawEntriesPage} / {rawEntriesPageCount()}</span>
-              <span>
-                Showing {rawEntriesShowingStart()}–{rawEntriesShowingEnd()} of
-                {workflow.observations.entries.length}
-              </span>
-              <button
-                type="button"
-                class="secondary pagination-button"
-                disabled={rawEntriesPage === 1}
-                onclick={showPreviousRawEntriesPage}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                class="secondary pagination-button"
-                disabled={rawEntriesPage === rawEntriesPageCount()}
-                onclick={showNextRawEntriesPage}
-              >
-                Next
-              </button>
-            </div>
-          {/if}
-        </div>
-        {#if workflow.observations.entries.length === 0}
-          <p class="empty-text">No parsed entries to display.</p>
-        {:else}
-          <ol class="render-list">
-            {#each paginatedRawEntries() as entry, index}
-              <RenderedEntry {entry} index={rawEntriesPageStartIndex() + index} />
-            {/each}
-          </ol>
-        {/if}
-      </section>
-
-      <aside class="diagnostics" aria-label="Parse diagnostics">
-        <h2>Resolved Path</h2>
-        <p class="diagnostic-path" title={displayedAbsolutePath()}>{displayedAbsolutePath()}</p>
-
-        <h2 class="diagnostic-heading">Counters</h2>
-        <dl class="diagnostic-metrics">
-          <div><dt>Parsed</dt><dd>{workflow.loaded_file.counters.parsed_candidates}</dd></div>
-          <div><dt>Total</dt><dd>{workflow.loaded_file.counters.total_entries}</dd></div>
-          <div><dt>Visible</dt><dd>{workflow.loaded_file.counters.visible_entries}</dd></div>
-          <div><dt>Ignored</dt><dd>{workflow.loaded_file.counters.ignored_lines}</dd></div>
-          <div><dt>Malformed</dt><dd>{workflow.loaded_file.counters.malformed_lines}</dd></div>
-        </dl>
-
-        <h2 class="diagnostic-heading">Observed Events</h2>
-        {#if workflow.loaded_file.observed_event_counts.length === 0}
-          <p class="empty-text">No observed event counts loaded.</p>
-        {:else}
-          <ol class="event-list">
-            {#each workflow.loaded_file.observed_event_counts as eventCount}
-              <li>
-                <span>{eventCount.event}</span>
-                <strong>{eventCount.count}</strong>
-              </li>
-            {/each}
-          </ol>
-        {/if}
-      </aside>
+  <footer class="transcript-footer" aria-label="Transcript actions">
+    <span class="transcript-action-status" aria-live="polite">
+      {transcriptActionStatusMessage}
+    </span>
+    <div class="transcript-actions">
+      <button
+        type="button"
+        class="refresh-button"
+        disabled={workflow.status !== 'loaded'}
+        onclick={captureTranscript}
+      >
+        Capture Transcript
+      </button>
+      <button
+        type="button"
+        class="refresh-button"
+        disabled={!hasSelectedPath()}
+        onclick={() => loadSelectedJsonl()}
+      >
+        Refresh
+      </button>
     </div>
-  </details>
+  </footer>
 </main>

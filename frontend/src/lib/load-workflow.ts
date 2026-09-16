@@ -3,9 +3,7 @@ import type {
   FilterDto,
   LoadedFileMetadataDto,
   ObservedEventCountDto,
-  ParseCountersDto,
   ParseResponseDto,
-  RenderedEntryDto,
   TranscriptBlockDto,
 } from './parse-contract'
 
@@ -17,12 +15,10 @@ export interface SelectedFileState {
 
 export interface LoadedFileState {
   metadata: LoadedFileMetadataDto | null
-  counters: ParseCountersDto
   observed_event_counts: ObservedEventCountDto[]
 }
 
 export interface ParsedObservationState {
-  entries: RenderedEntryDto[]
   transcript_blocks: TranscriptBlockDto[]
 }
 
@@ -44,14 +40,6 @@ export const defaultFilterState: FilterDto = {
   show_meta: true,
 }
 
-export const emptyCounters: ParseCountersDto = {
-  parsed_candidates: 0,
-  total_entries: 0,
-  visible_entries: 0,
-  ignored_lines: 0,
-  malformed_lines: 0,
-}
-
 export function createInitialLoadWorkflowState(): LoadWorkflowState {
   return {
     status: 'idle',
@@ -60,14 +48,10 @@ export function createInitialLoadWorkflowState(): LoadWorkflowState {
     },
     loaded_file: {
       metadata: null,
-      counters: { ...emptyCounters },
       observed_event_counts: [],
     },
     all_observations: emptyObservations(),
-    observations: {
-      entries: [],
-      transcript_blocks: [],
-    },
+    observations: emptyObservations(),
     filter: { ...defaultFilterState },
     error: null,
   }
@@ -96,7 +80,6 @@ export function applyParseResponse(
   response: ParseResponseDto,
 ): LoadWorkflowState {
   const allObservations = {
-    entries: response.parsed_chat_log.entries,
     transcript_blocks: response.parsed_chat_log.transcript_blocks,
   }
   const observations = projectObservations(allObservations, state.filter)
@@ -106,10 +89,6 @@ export function applyParseResponse(
     status: 'loaded',
     loaded_file: {
       metadata: response.source,
-      counters: {
-        ...response.parsed_chat_log.counters,
-        visible_entries: observations.entries.length,
-      },
       observed_event_counts: response.parsed_chat_log.observed_event_counts,
     },
     all_observations: allObservations,
@@ -139,13 +118,6 @@ export function updateFilter(
 
   return {
     ...state,
-    loaded_file: {
-      ...state.loaded_file,
-      counters: {
-        ...state.loaded_file.counters,
-        visible_entries: observations.entries.length,
-      },
-    },
     observations,
     filter,
   }
@@ -156,14 +128,13 @@ function projectObservations(
   filter: FilterDto,
 ): ParsedObservationState {
   return {
-    entries: observations.entries.filter((entry) => filterAllowsKind(entry.kind, filter)),
     transcript_blocks: observations.transcript_blocks.filter((block) =>
       filterAllowsKind(block.entry_type, filter),
     ),
   }
 }
 
-function filterAllowsKind(kind: RenderedEntryDto['kind'], filter: FilterDto): boolean {
+function filterAllowsKind(kind: TranscriptBlockDto['entry_type'], filter: FilterDto): boolean {
   switch (kind) {
     case 'you':
       return filter.show_you
@@ -185,7 +156,6 @@ function clearLoadedResult(state: LoadWorkflowState): LoadWorkflowState {
     ...state,
     loaded_file: {
       metadata: null,
-      counters: { ...emptyCounters },
       observed_event_counts: [],
     },
     all_observations: emptyObservations(),
@@ -196,7 +166,6 @@ function clearLoadedResult(state: LoadWorkflowState): LoadWorkflowState {
 
 function emptyObservations(): ParsedObservationState {
   return {
-    entries: [],
     transcript_blocks: [],
   }
 }

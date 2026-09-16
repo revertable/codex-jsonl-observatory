@@ -2,7 +2,7 @@
 
 Codex JSONL Observatory is a local desktop tool for reading Codex session JSONL files and exporting versionable worklog bundles. Supported session sources include Codex CLI and the Codex Windows app. Built with Rust, Svelte, and Tauri, it processes session data locally.
 
-Use it for transcript reading, inspecting raw entries and parser diagnostics, or turning a complete session into structured files that can live with a project workspace, documentation, internal archive, or repository.
+Use it for transcript reading, capturing a filtered transcript as text, or turning a complete session into structured files that can live with a project workspace, documentation, internal archive, or repository.
 
 ## Lineage and release status
 
@@ -17,7 +17,8 @@ Just download the Windows portable zip, unzip it, and run the app. No server set
 - Open a Codex session JSONL file from Codex CLI or the Codex Windows app with the file picker or a local path.
 - Read parsed transcript blocks in **Terminal Style**, **Markdown Style**, **DM Style**, or **DM Style (Dark)**.
 - Focus the transcript with role filters for You, Codex, tool calls, tool results, and metadata.
-- Inspect paginated raw entries, the resolved source path, parser counters, and observed event counts under **Raw Entries & Diagnostics**.
+- Capture the currently filtered and themed transcript as clipboard text with **Capture Transcript**.
+- Refresh the selected session from either the top controls or the actions below the transcript.
 - Copy the detected `codex resume <session-id>` command with **Copy Resume Command**.
 - Open the related [Cosmic Horizon Archive](https://riu-salze-studio.gitbook.io/cosmic-horizon) with **Visit Cosmic Horizon**.
 - Export the complete session as a versionable worklog bundle with **Export Worklog**.
@@ -26,7 +27,7 @@ Just download the Windows portable zip, unzip it, and run the app. No server set
 
 Use **Select JSONL** to choose a Codex session JSONL file from Codex CLI or the Codex Windows app. You can also paste a local JSONL path and use **Refresh** to load or reload it.
 
-The main transcript presents parsed blocks in the selected reading theme. Role filters change what appears in this view without changing the source session. Open **Raw Entries & Diagnostics** when you need the entry-level representation or parsing details.
+The main transcript presents parsed blocks in the selected reading theme. Role filters change what appears in this view without changing the source session. **Capture Transcript** copies the text currently displayed in the transcript, including the filtered blocks. A second **Refresh** action below the transcript reloads the selected session without requiring you to scroll back to the top. Click the **loaded** status to clear the selected session and return the app to its initial idle state.
 
 When a session ID is available, **Copy Resume Command** copies the corresponding Codex CLI resume command to the clipboard.
 

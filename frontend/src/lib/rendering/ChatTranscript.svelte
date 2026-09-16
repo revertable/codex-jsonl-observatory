@@ -1,10 +1,6 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import type {
-    LoadedFileMetadataDto,
-    ObservedEventCountDto,
-    TranscriptBlockDto,
-  } from '../parse-contract'
+  import type { ObservedEventCountDto, TranscriptBlockDto } from '../parse-contract'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
 
@@ -13,12 +9,11 @@
   interface Props {
     theme: Extract<TranscriptThemeName, 'DM Style' | 'DM Style (Dark)'>
     isLoaded: boolean
-    metadata: LoadedFileMetadataDto | null
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
   }
 
-  let { theme, isLoaded, metadata, observedEventCounts, blocks }: Props = $props()
+  let { theme, isLoaded, observedEventCounts, blocks }: Props = $props()
   let collapsedBlocks = $state<Record<number, boolean>>({})
 
   const displayedEventCounts = $derived(
@@ -45,9 +40,7 @@
       <strong>Codex JSONL Observatory</strong>
       <span>{theme}</span>
     </div>
-    {#if isLoaded && metadata !== null}
-      <p title={metadata.absolute_path}>{metadata.file_name ?? 'Selected session'}</p>
-    {:else}
+    {#if !isLoaded}
       <div class="chat-empty-state">
         <p>Ready.</p>
         <p>Codex JSONL Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</p>
@@ -61,7 +54,7 @@
     {/if}
   </header>
 
-  {#if isLoaded && metadata !== null}
+  {#if isLoaded}
     {#if blocks.length === 0}
       <section class="chat-notice">
         <p>No renderable chat messages found in this JSONL file.</p>
