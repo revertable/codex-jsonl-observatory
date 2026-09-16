@@ -65,7 +65,13 @@ Windows에서 소스 코드를 직접 빌드하려면 npm이 포함된 Node.js�
 build-and-run.bat
 ```
 
-이 스크립트는 설치 프로그램 번들을 만들지 않고 release 애플리케이션을 빌드한 뒤 다음 실행 파일을 시작합니다.
+이 스크립트는 설치 프로그램을 만들지 않고 release 애플리케이션을 빌드하고 다음 포터블 압축 파일을 생성한 뒤 앱을 시작합니다.
+
+```text
+release\Codex-JSONL-Observatory_1.0.0_windows-x64-portable.zip
+```
+
+압축 파일에는 `codex-jsonl-observatory.exe`, `LICENSE`, 영문·한국어가 함께 수록된 `README.txt`가 포함됩니다. 빌드된 앱은 다음 경로에서 시작됩니다.
 
 ```text
 frontend\src-tauri\target\release\codex-jsonl-observatory.exe

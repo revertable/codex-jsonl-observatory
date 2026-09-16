@@ -3,9 +3,16 @@ setlocal
 
 set "FRONTEND_DIR=%~dp0frontend"
 set "APP_EXE=src-tauri\target\release\codex-jsonl-observatory.exe"
+set "PACKAGE_SCRIPT=%~dp0frontend\src-tauri\scripts\package-portable.ps1"
 
 if not exist "%FRONTEND_DIR%\package.json" (
   echo [ERROR] The frontend project was not found.
+  pause
+  exit /b 1
+)
+
+if not exist "%PACKAGE_SCRIPT%" (
+  echo [ERROR] The portable packaging script was not found.
   pause
   exit /b 1
 )
@@ -31,6 +38,10 @@ if errorlevel 1 goto :build_failed
 
 if not exist "%APP_EXE%" goto :missing_executable
 
+echo Creating portable archive...
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PACKAGE_SCRIPT%" -ExecutablePath "%CD%\%APP_EXE%"
+if errorlevel 1 goto :package_failed
+
 echo Starting Codex JSONL Observatory...
 start "" "%APP_EXE%"
 if errorlevel 1 goto :launch_failed
@@ -50,6 +61,13 @@ echo [ERROR] The build completed, but the application executable was not found.
 popd
 pause
 exit /b 1
+
+:package_failed
+set "RESULT=%ERRORLEVEL%"
+echo [ERROR] The portable archive could not be created.
+popd
+pause
+exit /b %RESULT%
 
 :launch_failed
 set "RESULT=%ERRORLEVEL%"

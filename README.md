@@ -65,7 +65,13 @@ To build from a source checkout on Windows, install Node.js with npm and the Rus
 build-and-run.bat
 ```
 
-The script builds the release application without generating installer bundles, then starts:
+The script builds the release application without generating an installer, creates the following portable archive, and then starts the application:
+
+```text
+release\Codex-JSONL-Observatory_1.0.0_windows-x64-portable.zip
+```
+
+The archive contains `codex-jsonl-observatory.exe`, `LICENSE`, and a bilingual `README.txt`. The built application is started from:
 
 ```text
 frontend\src-tauri\target\release\codex-jsonl-observatory.exe
