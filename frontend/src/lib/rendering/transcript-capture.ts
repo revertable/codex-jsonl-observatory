@@ -149,6 +149,8 @@ function displayedEventCounts(eventCounts: ObservedEventCountDto[]): ObservedEve
 }
 
 function captureLabel(kind: EntryKind): string {
+  // These labels reproduce the renderer text that defined the capture
+  // contract. Keep them explicit instead of coupling capture to styling data.
   switch (kind) {
     case 'you':
       return 'YOU'

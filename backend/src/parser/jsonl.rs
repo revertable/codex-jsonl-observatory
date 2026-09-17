@@ -420,22 +420,7 @@ fn json_string(raw: Option<&RawValue>) -> Option<Cow<'_, str>> {
 }
 
 fn typed_string(raw: Option<&RawValue>) -> Option<Cow<'_, str>> {
-    match json_string(raw)? {
-        Cow::Borrowed(text) => {
-            let text = text.trim();
-            (!text.is_empty()).then_some(Cow::Borrowed(text))
-        }
-        Cow::Owned(text) => {
-            let trimmed = text.trim();
-            if trimmed.is_empty() {
-                None
-            } else if trimmed.len() == text.len() {
-                Some(Cow::Owned(text))
-            } else {
-                Some(Cow::Owned(trimmed.to_owned()))
-            }
-        }
-    }
+    trimmed_nonempty(json_string(raw)?)
 }
 
 fn typed_text(raw: Option<&RawValue>) -> Option<Cow<'_, str>> {

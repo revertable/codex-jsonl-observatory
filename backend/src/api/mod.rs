@@ -5,7 +5,7 @@ use std::{
 };
 
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::{
     domain::{ChatEntryFilter, ParsedChatLog, ReferencedConversation, RenderedEntryKind},
@@ -277,6 +277,10 @@ pub fn project_parsed_chat_log(
     ParsedChatLogDto::from_domain(parsed, &ChatEntryFilter::from(filter))
 }
 
+fn serialize_dto<T: Serialize>(dto: &T) -> Value {
+    serde_json::to_value(dto).expect("API DTO serialization is infallible")
+}
+
 impl LoadedFileMetadataDto {
     pub fn from_path(path: &Path) -> io::Result<Self> {
         let absolute_path = absolute_path(path)?;
@@ -298,11 +302,7 @@ impl LoadedFileMetadataDto {
 
 impl ParseResponseDto {
     pub fn to_json(&self) -> Value {
-        json!({
-            "source": self.source.to_json(),
-            "session": self.session.to_json(),
-            "parsed_chat_log": self.parsed_chat_log.to_json(),
-        })
+        serialize_dto(self)
     }
 }
 
@@ -325,11 +325,7 @@ impl SessionDescriptorDto {
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
-            "classification": self.classification.as_str(),
-            "identity": self.identity.as_ref().map(SessionIdentityDto::to_json),
-            "capabilities": self.capabilities.to_json(),
-        })
+        serialize_dto(self)
     }
 }
 
@@ -364,19 +360,6 @@ impl SessionIdentityDto {
             subagent_history_start_ordinal: identity.subagent_history_start_ordinal,
         }
     }
-
-    fn to_json(&self) -> Value {
-        json!({
-            "thread_id": self.thread_id,
-            "session_id": self.session_id,
-            "parent_thread_id": self.parent_thread_id,
-            "originator": self.originator,
-            "thread_source": self.thread_source,
-            "source": self.source.to_json(),
-            "history_mode": self.history_mode,
-            "subagent_history_start_ordinal": self.subagent_history_start_ordinal,
-        })
-    }
 }
 
 impl SessionSourceDto {
@@ -395,24 +378,6 @@ impl SessionSourceDto {
                 value: None,
             },
         }
-    }
-
-    fn to_json(&self) -> Value {
-        json!({
-            "kind": self.kind,
-            "value": self.value,
-        })
-    }
-}
-
-impl SessionCapabilitiesDto {
-    fn to_json(self) -> Value {
-        json!({
-            "can_show_transcript": self.can_show_transcript,
-            "can_resume": self.can_resume,
-            "can_export_worklog": self.can_export_worklog,
-            "can_open_parent_session": self.can_open_parent_session,
-        })
     }
 }
 
@@ -444,11 +409,7 @@ impl LocateParentSessionResponseDto {
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
-            "status": self.status.as_str(),
-            "path": self.path,
-            "message": self.message,
-        })
+        serialize_dto(self)
     }
 }
 
@@ -465,12 +426,7 @@ impl ParentSessionLocationStatusDto {
 
 impl LoadedFileMetadataDto {
     pub fn to_json(&self) -> Value {
-        json!({
-            "file_name": self.file_name,
-            "absolute_path": self.absolute_path,
-            "session_id": self.session_id,
-            "resume_command": self.resume_command,
-        })
+        serialize_dto(self)
     }
 }
 
@@ -570,13 +526,7 @@ impl ParsedChatLogDto {
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
-            "entries": self.entries.iter().map(RenderedEntryDto::to_json).collect::<Vec<_>>(),
-            "transcript_blocks": self.transcript_blocks.iter().map(TranscriptBlockDto::to_json).collect::<Vec<_>>(),
-            "referenced_conversations": self.referenced_conversations.iter().map(ReferencedConversationDto::to_json).collect::<Vec<_>>(),
-            "counters": self.counters.to_json(),
-            "observed_event_counts": self.observed_event_counts.iter().map(ObservedEventCountDto::to_json).collect::<Vec<_>>(),
-        })
+        serialize_dto(self)
     }
 }
 
@@ -614,11 +564,7 @@ fn api_filter_allows_kind(filter: &ChatEntryFilter, kind: RenderedEntryKind) -> 
 
 impl RenderedEntryDto {
     pub fn to_json(&self) -> Value {
-        json!({
-            "kind": self.kind.as_str(),
-            "label": self.label,
-            "content": self.content,
-        })
+        serialize_dto(self)
     }
 }
 
@@ -630,24 +576,11 @@ impl ReferencedConversationDto {
             preview_available: reference.preview_available,
         }
     }
-
-    fn to_json(&self) -> Value {
-        json!({
-            "conversation_id": self.conversation_id,
-            "title": self.title,
-            "preview_available": self.preview_available,
-        })
-    }
 }
 
 impl TranscriptBlockDto {
     pub fn to_json(&self) -> Value {
-        json!({
-            "entry_type": self.entry_type.as_str(),
-            "label": self.label,
-            "title": self.title,
-            "content": self.content,
-        })
+        serialize_dto(self)
     }
 }
 
@@ -681,22 +614,13 @@ impl EntryKindDto {
 
 impl ParseCountersDto {
     pub fn to_json(&self) -> Value {
-        json!({
-            "parsed_candidates": self.parsed_candidates,
-            "total_entries": self.total_entries,
-            "visible_entries": self.visible_entries,
-            "ignored_lines": self.ignored_lines,
-            "malformed_lines": self.malformed_lines,
-        })
+        serialize_dto(self)
     }
 }
 
 impl ObservedEventCountDto {
     pub fn to_json(&self) -> Value {
-        json!({
-            "event": self.event,
-            "count": self.count,
-        })
+        serialize_dto(self)
     }
 }
 
@@ -715,12 +639,7 @@ impl ErrorResponseDto {
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
-            "error": {
-                "code": self.error.code,
-                "message": self.error.message,
-            }
-        })
+        serialize_dto(self)
     }
 }
 

@@ -85,7 +85,7 @@ build-and-run.bat
 이 스크립트는 설치 프로그램을 만들지 않고 release 애플리케이션을 빌드하고 다음 포터블 압축 파일을 생성한 뒤 앱을 시작합니다.
 
 ```text
-release\Codex-JSONL-Observatory_1.1.1_windows-x64-portable.zip
+release\Codex-JSONL-Observatory_1.1.2_windows-x64-portable.zip
 ```
 
 압축 파일에는 `codex-jsonl-observatory.exe`, `LICENSE`, 영문·한국어가 함께 수록된 `README.txt`가 포함됩니다. 빌드된 앱은 다음 경로에서 시작됩니다.

@@ -85,7 +85,7 @@ build-and-run.bat
 The script builds the release application without generating an installer, creates the following portable archive, and then starts the application:
 
 ```text
-release\Codex-JSONL-Observatory_1.1.1_windows-x64-portable.zip
+release\Codex-JSONL-Observatory_1.1.2_windows-x64-portable.zip
 ```
 
 The archive contains `codex-jsonl-observatory.exe`, `LICENSE`, and a bilingual `README.txt`. The built application is started from:

@@ -306,7 +306,7 @@ test('all frontend filter combinations preserve the selected block order in capt
   }
 })
 
-test('transcript scope preserves refresh state but resets collapse for legacy key changes', () => {
+test('transcript scope preserves refresh state but resets collapse when its identity changes', () => {
   const idle = createInitialLoadWorkflowState()
   const loading = beginLoad(idle)
   const loaded = applyParseResponse(loading, responseFixture())

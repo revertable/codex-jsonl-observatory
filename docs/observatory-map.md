@@ -100,6 +100,10 @@ backend/src/export/
 
 The backend is a Rust library used by the Tauri application. It is not currently an HTTP server and does not expose a standalone local web API.
 
+For an ordinary session, the backend first inspects the stream for session identity, rewinds the file, and then parses it line by line with a reusable buffer. Known Codex envelopes use a typed, borrowing-oriented path. Unknown or legacy shapes retain the compatibility path through `serde_json::Value`. Candidate ordering, counters, replacement, and adjacent-deduplication semantics are shared after extraction.
+
+Specialized sessions stop at their specialized routing boundary instead of entering the ordinary transcript parser. Parent-session lookup independently verifies candidate files by inspected thread identity.
+
 Avoid decorative names that hide purpose.
 
 ---
@@ -129,6 +133,8 @@ frontend/src/lib/load-workflow.ts
 frontend/src/lib/parse-contract.ts
 frontend/src/lib/specialized-session.ts
 ```
+
+The frontend retains the complete loaded transcript block set and projects role filters locally. Renderers receive the projected blocks plus explicit collapse state; filter and theme changes do not trigger an additional keyed remount of the transcript container. Transcript capture is a data-based serialization of the current theme, projected blocks, references, event summary, and collapse state rather than a readback from DOM text.
 
 ---
 
