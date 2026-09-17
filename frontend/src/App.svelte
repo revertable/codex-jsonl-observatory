@@ -22,6 +22,8 @@
   import ChatTranscript from './lib/rendering/ChatTranscript.svelte'
   import MarkdownTranscript from './lib/rendering/MarkdownTranscript.svelte'
   import TerminalTranscript from './lib/rendering/TerminalTranscript.svelte'
+  import { serializeTranscript } from './lib/rendering/transcript-capture'
+  import { transcriptScopeChanged } from './lib/rendering/transcript-scope'
   import {
     renderPathForTheme,
     type TranscriptThemeName,
@@ -35,14 +37,47 @@
   let isExportingWorklog = false
   let isLocatingParentSession = false
   let parentSessionStatusMessage = ''
-  let transcriptElement: HTMLElement | null = null
   let selectedTheme: TranscriptThemeName = 'Terminal Style'
+  let collapsedBlocks: Record<number, boolean> = {}
+
+  function replaceWorkflow(nextWorkflow: LoadWorkflowState) {
+    const shouldResetCollapse = transcriptScopeChanged(
+      workflow,
+      selectedTheme,
+      nextWorkflow,
+      selectedTheme,
+    )
+    workflow = nextWorkflow
+    if (shouldResetCollapse) {
+      collapsedBlocks = {}
+    }
+  }
+
+  function replaceTheme(nextTheme: TranscriptThemeName) {
+    const shouldResetCollapse = transcriptScopeChanged(
+      workflow,
+      selectedTheme,
+      workflow,
+      nextTheme,
+    )
+    selectedTheme = nextTheme
+    if (shouldResetCollapse) {
+      collapsedBlocks = {}
+    }
+  }
+
+  function toggleTranscriptBlock(index: number) {
+    collapsedBlocks = {
+      ...collapsedBlocks,
+      [index]: !(collapsedBlocks[index] ?? false),
+    }
+  }
 
   async function chooseJsonlPath() {
     const selectedPath = await selectJsonlPath()
 
     if (selectedPath !== null) {
-      workflow = selectPath(workflow, selectedPath)
+      replaceWorkflow(selectPath(workflow, selectedPath))
       actionStatusMessage = ''
       transcriptActionStatusMessage = ''
       parentSessionStatusMessage = ''
@@ -57,28 +92,28 @@
       return
     }
 
-    workflow = beginLoad(workflow)
+    replaceWorkflow(beginLoad(workflow))
     transcriptActionStatusMessage = ''
     parentSessionStatusMessage = ''
 
     try {
       const response = await loadAllObservations(path, parseSelectedJsonl)
-      workflow = applyParseResponse(workflow, response)
+      replaceWorkflow(applyParseResponse(workflow, response))
       actionStatusMessage = ''
     } catch (error) {
-      workflow = failLoad(workflow, normalizeLoadError(error))
+      replaceWorkflow(failLoad(workflow, normalizeLoadError(error)))
       actionStatusMessage = ''
     }
   }
 
   function handleFilterChange(key: keyof LoadWorkflowState['filter'], value: boolean) {
-    workflow = updateFilter(workflow, key, value)
+    replaceWorkflow(updateFilter(workflow, key, value))
     transcriptActionStatusMessage = ''
     parentSessionStatusMessage = ''
   }
 
   function handleThemeChange(theme: TranscriptThemeName) {
-    selectedTheme = theme
+    replaceTheme(theme)
     transcriptActionStatusMessage = ''
     parentSessionStatusMessage = ''
   }
@@ -88,30 +123,15 @@
       return
     }
 
-    workflow = createInitialLoadWorkflowState()
+    replaceWorkflow(createInitialLoadWorkflowState())
     actionStatusMessage = ''
     transcriptActionStatusMessage = ''
     parentSessionStatusMessage = ''
-    selectedTheme = 'Terminal Style'
+    replaceTheme('Terminal Style')
   }
 
   function displayFriendlyPath(path: string) {
     return path.replace(/^\\\\\?\\UNC\\/i, '\\\\').replace(/^\\\\\?\\/, '')
-  }
-
-  function transcriptKey() {
-    const filter = workflow.filter
-    return [
-      workflow.loaded_file.metadata?.absolute_path ?? 'unloaded',
-      workflow.loaded_file.session?.classification ?? 'unclassified',
-      workflow.loaded_file.session?.identity?.thread_id ?? 'no-thread',
-      filter.show_you,
-      filter.show_codex,
-      filter.show_tool_call,
-      filter.show_tool_result,
-      filter.show_meta,
-      selectedTheme,
-    ].join('|')
   }
 
   async function copyResumeCommand() {
@@ -136,13 +156,18 @@
   async function captureTranscript() {
     if (
       workflow.status !== 'loaded' ||
-      workflow.loaded_file.session?.capabilities.can_show_transcript !== true ||
-      transcriptElement === null
+      workflow.loaded_file.session?.capabilities.can_show_transcript !== true
     ) {
       return
     }
 
-    const transcriptText = transcriptElement.innerText.trim()
+    const transcriptText = serializeTranscript({
+      theme: selectedTheme,
+      blocks: workflow.observations.transcript_blocks,
+      references: workflow.observations.referenced_conversations,
+      observedEventCounts: workflow.loaded_file.observed_event_counts,
+      collapsedBlocks,
+    })
 
     if (transcriptText === '') {
       transcriptActionStatusMessage = 'No transcript text available.'
@@ -263,7 +288,7 @@
         return
       }
 
-      workflow = selectPath(workflow, result.path)
+      replaceWorkflow(selectPath(workflow, result.path))
       await loadSelectedJsonl(result.path)
       if (workflow.status === 'loaded') {
         actionStatusMessage = 'Parent session opened.'
@@ -329,45 +354,48 @@
 
   <section class="terminal-section" aria-label="Transcript view">
     <article
-      bind:this={transcriptElement}
       class:terminal-panel={renderPathForTheme(selectedTheme) === 'terminal'}
       class:theme-panel={renderPathForTheme(selectedTheme) !== 'terminal'}
     >
-      {#key transcriptKey()}
-        {#if workflow.loaded_file.session !== null && isSpecializedSession(workflow.loaded_file.session)}
-          <SpecializedSessionPanel
-            session={workflow.loaded_file.session}
-            isLocatingParent={isLocatingParentSession}
-            parentStatusMessage={parentSessionStatusMessage}
-            onOpenParent={openParentSession}
-          />
-        {:else if renderPathForTheme(selectedTheme) === 'terminal'}
-          <TerminalTranscript
-            theme={selectedTheme}
-            isLoaded={workflow.status === 'loaded'}
-            showIdentityNote={workflow.status !== 'loaded'}
-            observedEventCounts={workflow.loaded_file.observed_event_counts}
-            blocks={workflow.observations.transcript_blocks}
-            references={workflow.observations.referenced_conversations}
-          />
-        {:else if renderPathForTheme(selectedTheme) === 'markdown'}
-          <MarkdownTranscript
-            theme={selectedTheme}
-            isLoaded={workflow.status === 'loaded'}
-            observedEventCounts={workflow.loaded_file.observed_event_counts}
-            blocks={workflow.observations.transcript_blocks}
-            references={workflow.observations.referenced_conversations}
-          />
-        {:else}
-          <ChatTranscript
-            theme={selectedTheme as 'DM Style' | 'DM Style (Dark)'}
-            isLoaded={workflow.status === 'loaded'}
-            observedEventCounts={workflow.loaded_file.observed_event_counts}
-            blocks={workflow.observations.transcript_blocks}
-            references={workflow.observations.referenced_conversations}
-          />
-        {/if}
-      {/key}
+      {#if workflow.loaded_file.session !== null && isSpecializedSession(workflow.loaded_file.session)}
+        <SpecializedSessionPanel
+          session={workflow.loaded_file.session}
+          isLocatingParent={isLocatingParentSession}
+          parentStatusMessage={parentSessionStatusMessage}
+          onOpenParent={openParentSession}
+        />
+      {:else if renderPathForTheme(selectedTheme) === 'terminal'}
+        <TerminalTranscript
+          theme={selectedTheme}
+          isLoaded={workflow.status === 'loaded'}
+          showIdentityNote={workflow.status !== 'loaded'}
+          observedEventCounts={workflow.loaded_file.observed_event_counts}
+          blocks={workflow.observations.transcript_blocks}
+          references={workflow.observations.referenced_conversations}
+          {collapsedBlocks}
+          onToggleBlock={toggleTranscriptBlock}
+        />
+      {:else if renderPathForTheme(selectedTheme) === 'markdown'}
+        <MarkdownTranscript
+          theme={selectedTheme}
+          isLoaded={workflow.status === 'loaded'}
+          observedEventCounts={workflow.loaded_file.observed_event_counts}
+          blocks={workflow.observations.transcript_blocks}
+          references={workflow.observations.referenced_conversations}
+          {collapsedBlocks}
+          onToggleBlock={toggleTranscriptBlock}
+        />
+      {:else}
+        <ChatTranscript
+          theme={selectedTheme as 'DM Style' | 'DM Style (Dark)'}
+          isLoaded={workflow.status === 'loaded'}
+          observedEventCounts={workflow.loaded_file.observed_event_counts}
+          blocks={workflow.observations.transcript_blocks}
+          references={workflow.observations.referenced_conversations}
+          {collapsedBlocks}
+          onToggleBlock={toggleTranscriptBlock}
+        />
+      {/if}
     </article>
   </section>
 

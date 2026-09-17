@@ -14,19 +14,25 @@
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
     references: ReferencedConversationDto[]
+    collapsedBlocks: Readonly<Record<number, boolean>>
+    onToggleBlock: (index: number) => void
   }
 
-  let { theme, isLoaded, showIdentityNote, observedEventCounts, blocks, references }: Props = $props()
-  let collapsedBlocks = $state<Record<number, boolean>>({})
+  let {
+    theme,
+    isLoaded,
+    showIdentityNote,
+    observedEventCounts,
+    blocks,
+    references,
+    collapsedBlocks,
+    onToggleBlock,
+  }: Props = $props()
 
   const separator = '========================================================================'
   const displayedEventCounts = $derived(
     [...observedEventCounts].sort((left, right) => right.count - left.count).slice(0, 8),
   )
-
-  function toggleBlock(index: number) {
-    collapsedBlocks[index] = !collapsedBlocks[index]
-  }
 
   function displayLabel(block: TranscriptBlockDto) {
     const sourceLabel = block.label.trim()
@@ -87,7 +93,7 @@
             type="button"
             class="terminal-block-toggle"
             aria-expanded={!isCollapsed}
-            onclick={() => toggleBlock(index)}
+            onclick={() => onToggleBlock(index)}
           >
             {isCollapsed ? '[>]' : '[v]'} {displayLabel(block)}
           </button>
