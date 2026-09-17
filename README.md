@@ -16,7 +16,7 @@ Just download the Windows portable zip, unzip it, and run the app. No server set
 
 ## Features
 
-- Open a Codex session JSONL file from Codex CLI or the Codex Windows app with the file picker or a local path.
+- Open a Codex session JSONL file from Codex CLI or the Codex Windows app with the **Select JSONL** file picker.
 - Read parsed transcript blocks in **Terminal Style**, **Markdown Style**, **DM Style**, or **DM Style (Dark)**.
 - Focus the transcript with role filters for You, Codex, tool calls, tool results, and metadata.
 - Distinguish human-authored requests from recognized ChatGPT-to-Work handoff data and injected ambient UI context.
@@ -30,7 +30,7 @@ Just download the Windows portable zip, unzip it, and run the app. No server set
 
 ## Reading a session
 
-Use **Select JSONL** to choose a Codex session JSONL file from Codex CLI or the Codex Windows app. You can also paste a local JSONL path and use **Refresh** to load or reload it.
+Use **Select JSONL** to choose a Codex session JSONL file from Codex CLI or the Codex Windows app. The selected path is displayed as read-only, and **Refresh** rereads the currently selected file from disk.
 
 The main transcript presents parsed blocks in the selected reading theme. Role filters change what appears in this view without changing the source session. **Capture Transcript** copies the text currently displayed in the transcript, including the filtered blocks. A second **Refresh** action below the transcript reloads the selected session without requiring you to scroll back to the top. Click the **loaded** status to clear the selected session and return the app to its initial idle state.
 

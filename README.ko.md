@@ -16,7 +16,7 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
 
 ## 주요 기능
 
-- 파일 선택기 또는 로컬 경로를 사용해 Codex CLI나 Codex Windows 앱의 세션 JSONL 파일을 엽니다.
+- **Select JSONL** 파일 선택기로 Codex CLI나 Codex Windows 앱의 세션 JSONL 파일을 엽니다.
 - 파싱된 대화 블록을 **Terminal Style**, **Markdown Style**, **DM Style**, **DM Style (Dark)** 중 원하는 테마로 읽습니다.
 - You, Codex, 도구 호출, 도구 결과, 메타데이터 필터로 원하는 대화 내용에 집중합니다.
 - 사람이 작성한 요청과 확인된 ChatGPT→Work handoff 데이터 및 자동 주입된 ambient UI context를 구분합니다.
@@ -30,7 +30,7 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
 
 ## 세션 읽기
 
-**Select JSONL**을 사용해 Codex CLI 또는 Codex Windows 앱의 세션 JSONL 파일을 선택합니다. 로컬 JSONL 경로를 직접 붙여 넣고 **Refresh**로 불러오거나 다시 읽을 수도 있습니다.
+**Select JSONL**을 사용해 Codex CLI 또는 Codex Windows 앱의 세션 JSONL 파일을 선택합니다. 선택한 경로는 읽기 전용으로 표시되며, **Refresh**는 현재 선택한 파일을 디스크에서 다시 읽습니다.
 
 기본 대화 영역은 파싱된 블록을 선택한 읽기 테마로 표시합니다. 역할 필터는 원본 세션을 변경하지 않고 이 영역에 표시되는 내용만 바꿉니다. **Capture Transcript**는 필터링된 블록을 포함해 현재 대화 영역에 표시된 텍스트를 복사합니다. 대화 영역 아래의 두 번째 **Refresh** 버튼을 사용하면 화면 상단으로 다시 스크롤하지 않아도 선택한 세션을 다시 불러올 수 있습니다. **loaded** 상태를 클릭하면 선택한 세션을 비우고 앱을 초기 idle 상태로 되돌립니다.
 
