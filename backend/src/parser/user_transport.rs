@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use serde_json::Value;
 
 use crate::domain::ReferencedConversation;
@@ -18,13 +20,55 @@ pub enum DecodedUserTransport {
     },
 }
 
+pub(crate) enum BorrowedUserTransport<'a> {
+    HumanRequest {
+        request: Cow<'a, str>,
+        reference: Option<ReferencedConversation>,
+    },
+    DelegatedHandoff {
+        reference: ReferencedConversation,
+    },
+}
+
 pub fn decode_user_transport(content: &str) -> Option<DecodedUserTransport> {
+    decode_user_transport_borrowed(content).map(|decoded| match decoded {
+        BorrowedUserTransport::HumanRequest { request, reference } => {
+            DecodedUserTransport::HumanRequest {
+                request: request.into_owned(),
+                reference,
+            }
+        }
+        BorrowedUserTransport::DelegatedHandoff { reference } => {
+            DecodedUserTransport::DelegatedHandoff { reference }
+        }
+    })
+}
+
+pub(crate) fn decode_user_transport_borrowed(content: &str) -> Option<BorrowedUserTransport<'_>> {
+    if content.contains("\r\n") {
+        let normalized = content.replace("\r\n", "\n");
+        return decode_normalized_user_transport(&normalized).map(|decoded| match decoded {
+            BorrowedUserTransport::HumanRequest { request, reference } => {
+                BorrowedUserTransport::HumanRequest {
+                    request: Cow::Owned(request.into_owned()),
+                    reference,
+                }
+            }
+            BorrowedUserTransport::DelegatedHandoff { reference } => {
+                BorrowedUserTransport::DelegatedHandoff { reference }
+            }
+        });
+    }
+
+    decode_normalized_user_transport(content)
+}
+
+fn decode_normalized_user_transport(content: &str) -> Option<BorrowedUserTransport<'_>> {
     decode_chatgpt_handoff(content).or_else(|| decode_ambient_ui_request(content))
 }
 
-fn decode_chatgpt_handoff(content: &str) -> Option<DecodedUserTransport> {
-    let normalized = content.replace("\r\n", "\n");
-    let body = normalized.trim().strip_prefix(REFERENCE_HEADING)?;
+fn decode_chatgpt_handoff(content: &str) -> Option<BorrowedUserTransport<'_>> {
+    let body = content.trim().strip_prefix(REFERENCE_HEADING)?;
     let request_boundary = format!("\n{REQUEST_HEADING}\n");
     let (reference_section, request) = body.split_once(&request_boundary)?;
     let request = request.trim();
@@ -43,18 +87,17 @@ fn decode_chatgpt_handoff(content: &str) -> Option<DecodedUserTransport> {
     };
 
     if matches_delegated_handoff(request, &reference) {
-        return Some(DecodedUserTransport::DelegatedHandoff { reference });
+        return Some(BorrowedUserTransport::DelegatedHandoff { reference });
     }
 
-    Some(DecodedUserTransport::HumanRequest {
-        request: request.to_owned(),
+    Some(BorrowedUserTransport::HumanRequest {
+        request: Cow::Borrowed(request),
         reference: Some(reference),
     })
 }
 
-fn decode_ambient_ui_request(content: &str) -> Option<DecodedUserTransport> {
-    let normalized = content.replace("\r\n", "\n");
-    let body = normalized.trim();
+fn decode_ambient_ui_request(content: &str) -> Option<BorrowedUserTransport<'_>> {
+    let body = content.trim();
     let after_open = body.strip_prefix(AMBIENT_OPEN)?;
     let (_, after_close) = after_open.split_once(AMBIENT_CLOSE)?;
     let after_close = after_close.trim_start();
@@ -64,8 +107,8 @@ fn decode_ambient_ui_request(content: &str) -> Option<DecodedUserTransport> {
         return None;
     }
 
-    Some(DecodedUserTransport::HumanRequest {
-        request: request.to_owned(),
+    Some(BorrowedUserTransport::HumanRequest {
+        request: Cow::Borrowed(request),
         reference: None,
     })
 }

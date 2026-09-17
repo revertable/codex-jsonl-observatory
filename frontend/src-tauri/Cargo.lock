@@ -215,9 +215,10 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "backend"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "indexmap 2.14.0",
+ "serde",
  "serde_json",
  "time",
 ]
@@ -476,7 +477,7 @@ dependencies = [
 
 [[package]]
 name = "codex-jsonl-observatory-tauri"
-version = "1.1.1"
+version = "1.1.2"
 dependencies = [
  "backend",
  "serde",

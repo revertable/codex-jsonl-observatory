@@ -1,8 +1,12 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs::File,
+    io::{self, Cursor, Seek, SeekFrom},
+    path::Path,
+};
 
 use crate::{
     domain::ParsedChatLog,
-    inspection::{SessionClassification, SessionIdentity, SessionInspection, inspect_str},
+    inspection::{SessionClassification, SessionIdentity, SessionInspection, inspect_reader},
     parser,
 };
 
@@ -101,13 +105,27 @@ pub fn load_file(path: impl AsRef<Path>) -> io::Result<LoadedSession> {
         return Ok(load_bytes(&[]));
     }
 
-    fs::read(path).map(|bytes| load_bytes(&bytes))
+    let mut file = File::open(path)?;
+    let descriptor = SessionDescriptor::from(inspect_reader(&mut file)?);
+    let outcome = match descriptor.route {
+        SessionRoute::OrdinaryTranscript => {
+            file.seek(SeekFrom::Start(0))?;
+            SessionProcessingOutcome::OrdinaryTranscript(parser::parse_reader(file)?)
+        }
+        SessionRoute::Specialized(classification) => process_specialized_session(classification),
+    };
+
+    Ok(LoadedSession {
+        descriptor,
+        outcome,
+    })
 }
 
 pub fn load_bytes(bytes: &[u8]) -> LoadedSession {
-    let text = String::from_utf8_lossy(bytes);
-    let descriptor = SessionDescriptor::from(inspect_str(&text));
-    let outcome = route_session(&descriptor, &text);
+    let descriptor = SessionDescriptor::from(
+        inspect_reader(Cursor::new(bytes)).expect("in-memory session inspection cannot fail"),
+    );
+    let outcome = route_session(&descriptor, bytes);
 
     LoadedSession {
         descriptor,
@@ -115,11 +133,11 @@ pub fn load_bytes(bytes: &[u8]) -> LoadedSession {
     }
 }
 
-fn route_session(descriptor: &SessionDescriptor, text: &str) -> SessionProcessingOutcome {
+fn route_session(descriptor: &SessionDescriptor, bytes: &[u8]) -> SessionProcessingOutcome {
     match descriptor.route {
-        SessionRoute::OrdinaryTranscript => {
-            SessionProcessingOutcome::OrdinaryTranscript(parser::parse_str(text))
-        }
+        SessionRoute::OrdinaryTranscript => SessionProcessingOutcome::OrdinaryTranscript(
+            parser::parse_reader(Cursor::new(bytes)).expect("in-memory JSONL parsing cannot fail"),
+        ),
         SessionRoute::Specialized(classification) => process_specialized_session(classification),
     }
 }

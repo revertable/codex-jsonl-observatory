@@ -1,24 +1,60 @@
+use std::borrow::Cow;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufReader, Cursor, Read};
 use std::path::Path;
 
 use indexmap::IndexMap;
-use serde_json::Value;
+use serde::Deserialize;
+use serde_json::{Value, value::RawValue};
 
 use crate::domain::{
     ParsedChatLog, ReferencedConversation, RenderedEntry, RenderedEntryKind, SessionProvenance,
 };
 
-use super::user_transport::{DecodedUserTransport, decode_user_transport};
+use super::user_transport::{
+    BorrowedUserTransport, DecodedUserTransport, decode_user_transport,
+    decode_user_transport_borrowed,
+};
 
 #[derive(Clone, Debug)]
 struct ParsedCandidate {
     entry: RenderedEntry,
-    stable_key: Option<String>,
-    normalized_text: String,
+    stable_slot: Option<usize>,
     source: CandidateSource,
     timestamp: Option<String>,
-    original_index: usize,
+}
+
+#[derive(Default)]
+struct CandidateAccumulator {
+    candidates: Vec<ParsedCandidate>,
+    stable_slots: IndexMap<String, usize>,
+}
+
+impl CandidateAccumulator {
+    fn push(&mut self, mut candidate: ParsedCandidate, stable_key: Option<String>) {
+        let Some(stable_key) = stable_key else {
+            self.candidates.push(candidate);
+            return;
+        };
+
+        if let Some(&slot) = self.stable_slots.get(&stable_key) {
+            candidate.stable_slot = Some(slot);
+            let selected = &mut self.candidates[slot];
+            if should_replace_candidate(selected, &candidate) {
+                *selected = candidate;
+            }
+            return;
+        }
+
+        let slot = self.candidates.len();
+        candidate.stable_slot = Some(slot);
+        self.stable_slots.insert(stable_key, slot);
+        self.candidates.push(candidate);
+    }
+
+    fn finish(self) -> Vec<ParsedCandidate> {
+        suppress_adjacent_duplicates(self.candidates)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,22 +80,105 @@ impl CandidateSource {
     }
 }
 
-struct CandidateSeed {
-    entry: RenderedEntry,
+enum CandidateEntry<'a> {
+    Ready(RenderedEntry),
+    User(Cow<'a, str>),
+}
+
+struct CandidateSeed<'a> {
+    entry: CandidateEntry<'a>,
     source: CandidateSource,
     stable_id: Option<String>,
     timestamp: Option<String>,
     is_user_message: bool,
 }
 
-pub fn parse_str(input: &str) -> ParsedChatLog {
-    parse_lossy_lines(input)
+#[derive(Deserialize)]
+struct EnvelopeFields<'a> {
+    #[serde(rename = "type", borrow)]
+    type_name: Option<&'a RawValue>,
+    #[serde(borrow)]
+    payload: Option<&'a RawValue>,
+    #[serde(borrow)]
+    timestamp: Option<&'a RawValue>,
+    #[serde(borrow)]
+    time: Option<&'a RawValue>,
+    #[serde(borrow)]
+    created_at: Option<&'a RawValue>,
+    #[serde(rename = "createdAt", borrow)]
+    created_at_camel: Option<&'a RawValue>,
 }
 
-pub fn parse_reader<R: Read>(mut reader: R) -> io::Result<ParsedChatLog> {
-    let mut bytes = Vec::new();
-    reader.read_to_end(&mut bytes)?;
-    Ok(parse_lossy_lines(&String::from_utf8_lossy(&bytes)))
+#[derive(Deserialize)]
+struct PayloadFields<'a> {
+    #[serde(rename = "type", borrow)]
+    type_name: Option<&'a RawValue>,
+    #[serde(borrow)]
+    role: Option<&'a RawValue>,
+    #[serde(borrow)]
+    id: Option<&'a RawValue>,
+    #[serde(borrow)]
+    call_id: Option<&'a RawValue>,
+    #[serde(borrow)]
+    turn_id: Option<&'a RawValue>,
+    #[serde(rename = "turnId", borrow)]
+    turn_id_camel: Option<&'a RawValue>,
+    #[serde(borrow)]
+    timestamp: Option<&'a RawValue>,
+    #[serde(borrow)]
+    time: Option<&'a RawValue>,
+    #[serde(borrow)]
+    created_at: Option<&'a RawValue>,
+    #[serde(rename = "createdAt", borrow)]
+    created_at_camel: Option<&'a RawValue>,
+    #[serde(borrow)]
+    message: Option<&'a RawValue>,
+    #[serde(borrow)]
+    content: Option<&'a RawValue>,
+    #[serde(borrow)]
+    text: Option<&'a RawValue>,
+    #[serde(borrow)]
+    output: Option<&'a RawValue>,
+    #[serde(borrow)]
+    result: Option<&'a RawValue>,
+    #[serde(borrow)]
+    summary: Option<&'a RawValue>,
+    #[serde(borrow)]
+    name: Option<&'a RawValue>,
+    #[serde(borrow)]
+    arguments: Option<&'a RawValue>,
+    #[serde(borrow)]
+    input: Option<&'a RawValue>,
+    #[serde(borrow)]
+    command: Option<&'a RawValue>,
+    #[serde(borrow)]
+    cmd: Option<&'a RawValue>,
+    #[serde(borrow)]
+    status: Option<&'a RawValue>,
+    #[serde(borrow)]
+    exit_code: Option<&'a RawValue>,
+    #[serde(rename = "exitCode", borrow)]
+    exit_code_camel: Option<&'a RawValue>,
+    #[serde(borrow)]
+    aggregated_output: Option<&'a RawValue>,
+    #[serde(borrow)]
+    formatted_output: Option<&'a RawValue>,
+    #[serde(borrow)]
+    stdout: Option<&'a RawValue>,
+    #[serde(borrow)]
+    stderr: Option<&'a RawValue>,
+    #[serde(borrow)]
+    model_provider: Option<&'a RawValue>,
+    #[serde(borrow)]
+    cli_version: Option<&'a RawValue>,
+}
+
+pub fn parse_str(input: &str) -> ParsedChatLog {
+    parse_bufread(Cursor::new(input.as_bytes())).expect("in-memory JSONL parsing cannot fail")
+}
+
+pub fn parse_reader<R: Read>(reader: R) -> io::Result<ParsedChatLog> {
+    parse_bufread(BufReader::new(reader))
 }
 
 pub fn parse_file(path: impl AsRef<Path>) -> io::Result<ParsedChatLog> {
@@ -71,60 +190,100 @@ pub fn parse_file(path: impl AsRef<Path>) -> io::Result<ParsedChatLog> {
     parse_reader(File::open(path)?)
 }
 
-fn parse_lossy_lines(input: &str) -> ParsedChatLog {
-    let mut candidates = Vec::new();
+fn parse_bufread<R: BufRead>(mut reader: R) -> io::Result<ParsedChatLog> {
+    let mut candidates = CandidateAccumulator::default();
     let mut session_provenance = SessionProvenance::default();
     let mut parsed_candidates = 0;
     let mut ignored_lines = 0;
     let mut malformed_lines = 0;
     let mut observed_event_counts = IndexMap::new();
-    let mut next_candidate_index = 0;
+    let mut line_buffer = Vec::new();
 
-    for raw_line in input.lines() {
-        let line = raw_line.trim();
+    loop {
+        line_buffer.clear();
+        if reader.read_until(b'\n', &mut line_buffer)? == 0 {
+            break;
+        }
+
+        let decoded_line = String::from_utf8_lossy(&line_buffer);
+        let line = decoded_line.trim();
         if line.is_empty() {
             continue;
         }
 
-        let value = match serde_json::from_str::<Value>(line) {
-            Ok(value) => value,
+        let extracted = match serde_json::from_str::<EnvelopeFields<'_>>(line) {
+            Ok(envelope) => {
+                let top_type = json_string(envelope.type_name);
+                let payload = envelope.payload.and_then(|payload| {
+                    serde_json::from_str::<PayloadFields<'_>>(payload.get()).ok()
+                });
+                if envelope.payload.is_some() && payload.is_none() {
+                    let value = serde_json::from_str::<Value>(line)
+                        .expect("validated JSON object must deserialize as Value");
+                    increment_observed_event_count(&mut observed_event_counts, &value);
+                    extract_candidate_seeds(&value)
+                } else {
+                    let payload_type = payload
+                        .as_ref()
+                        .and_then(|payload| json_string(payload.type_name));
+                    increment_observed_event_parts(
+                        &mut observed_event_counts,
+                        top_type.as_deref(),
+                        payload_type.as_deref(),
+                    );
+
+                    match extract_typed_focused_seed(
+                        line,
+                        &envelope,
+                        payload.as_ref(),
+                        top_type.as_deref(),
+                        payload_type.as_deref(),
+                    ) {
+                        Some(Some(seed)) => vec![seed],
+                        Some(None) => Vec::new(),
+                        None => {
+                            let value = serde_json::from_str::<Value>(line)
+                                .expect("validated JSON object must deserialize as Value");
+                            extract_candidate_seeds(&value)
+                        }
+                    }
+                }
+            }
             Err(_) => {
-                malformed_lines += 1;
-                continue;
+                let value = match serde_json::from_str::<Value>(line) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        malformed_lines += 1;
+                        continue;
+                    }
+                };
+                increment_observed_event_count(&mut observed_event_counts, &value);
+                extract_candidate_seeds(&value)
             }
         };
-
-        increment_observed_event_count(&mut observed_event_counts, &value);
-
-        let extracted = extract_candidate_seeds(&value);
         if extracted.is_empty() {
             ignored_lines += 1;
         } else {
             parsed_candidates += extracted.len();
             for seed in extracted {
-                let (candidate, reference) = parsed_candidate(seed, next_candidate_index);
-                next_candidate_index += 1;
+                let (candidate, stable_key, reference) = parsed_candidate(seed);
                 if let Some(reference) = reference {
                     session_provenance.observe_reference(reference);
                 }
                 if let Some(candidate) = candidate {
-                    candidates.push(candidate);
+                    candidates.push(candidate, stable_key);
                 }
             }
         }
     }
 
-    let candidates = dedupe_candidates(candidates);
-    let entry_timestamps = candidates
-        .iter()
-        .map(|candidate| candidate.timestamp.clone())
-        .collect();
-    let entries = candidates
+    let (entries, entry_timestamps) = candidates
+        .finish()
         .into_iter()
-        .map(|candidate| candidate.entry)
-        .collect();
+        .map(|candidate| (candidate.entry, candidate.timestamp))
+        .unzip();
 
-    ParsedChatLog {
+    Ok(ParsedChatLog {
         parsed_candidates,
         entries,
         entry_timestamps,
@@ -132,7 +291,7 @@ fn parse_lossy_lines(input: &str) -> ParsedChatLog {
         ignored_lines,
         malformed_lines,
         observed_event_counts,
-    }
+    })
 }
 
 fn increment_observed_event_count(counts: &mut IndexMap<String, usize>, value: &Value) {
@@ -141,6 +300,14 @@ fn increment_observed_event_count(counts: &mut IndexMap<String, usize>, value: &
         .get("payload")
         .and_then(|payload| string_field(payload, "type"));
 
+    increment_observed_event_parts(counts, top_type, payload_type);
+}
+
+fn increment_observed_event_parts(
+    counts: &mut IndexMap<String, usize>,
+    top_type: Option<&str>,
+    payload_type: Option<&str>,
+) {
     let key = match (top_type, payload_type) {
         (Some(top_type), Some(payload_type)) => format!("{top_type}/{payload_type}"),
         (None, Some(payload_type)) => payload_type.to_owned(),
@@ -151,40 +318,397 @@ fn increment_observed_event_count(counts: &mut IndexMap<String, usize>, value: &
     *counts.entry(key).or_insert(0) += 1;
 }
 
-fn parsed_candidate(
-    seed: CandidateSeed,
-    original_index: usize,
-) -> (Option<ParsedCandidate>, Option<ReferencedConversation>) {
-    let (entry, reference) = if seed.is_user_message {
-        match decode_user_transport(&seed.entry.content) {
-            Some(DecodedUserTransport::HumanRequest { request, reference }) => {
-                (Some(classify_user_message(&request)), reference)
+fn extract_typed_focused_seed<'a>(
+    line: &'a str,
+    envelope: &EnvelopeFields<'a>,
+    payload: Option<&PayloadFields<'a>>,
+    top_type: Option<&str>,
+    payload_type: Option<&str>,
+) -> Option<Option<CandidateSeed<'a>>> {
+    if top_type == Some("session_meta") {
+        let root_payload;
+        let payload = match payload {
+            Some(payload) => payload,
+            None if envelope.payload.is_none() => {
+                root_payload = serde_json::from_str::<PayloadFields<'a>>(line).ok()?;
+                &root_payload
             }
-            Some(DecodedUserTransport::DelegatedHandoff { reference }) => (None, Some(reference)),
-            None => (Some(seed.entry), None),
-        }
-    } else {
-        (Some(seed.entry), None)
-    };
-    let Some(entry) = entry else {
-        return (None, reference);
-    };
-    let normalized_text = normalize_text(&entry.content);
+            None => return Some(None),
+        };
+        return Some(typed_session_meta(payload).map(|entry| CandidateSeed {
+            entry: CandidateEntry::Ready(entry),
+            source: CandidateSource::EventSystem,
+            stable_id: typed_stable_id(payload),
+            timestamp: typed_timestamp(envelope).or_else(|| typed_payload_timestamp(payload)),
+            is_user_message: false,
+        }));
+    }
 
-    let candidate = ParsedCandidate {
-        normalized_text,
-        stable_key: seed
-            .stable_id
-            .map(|stable_id| format!("{}:{stable_id}", rendered_kind_key(entry.kind))),
-        entry,
-        source: seed.source,
-        timestamp: seed.timestamp,
-        original_index,
+    let payload = payload?;
+    let source = match (top_type, payload_type) {
+        (Some("event_msg"), Some("user_message")) => CandidateSource::EventUserMessage,
+        (Some("event_msg"), Some("agent_message")) => CandidateSource::EventAgentMessage,
+        (Some("event_msg"), Some("exec_command_end" | "patch_apply_end")) => {
+            CandidateSource::EventToolResult
+        }
+        (Some("event_msg"), Some("task_started" | "task_complete")) => CandidateSource::EventSystem,
+        (Some("response_item"), Some("message")) => CandidateSource::ResponseMessage,
+        (Some("response_item"), Some("function_call" | "custom_tool_call")) => {
+            CandidateSource::ResponseToolCall
+        }
+        (Some("response_item"), Some("function_call_output" | "custom_tool_call_output")) => {
+            CandidateSource::ResponseToolResult
+        }
+        _ => return None,
     };
-    (Some(candidate), reference)
+
+    let entry = match (top_type, payload_type) {
+        (Some("event_msg"), Some("user_message")) => {
+            typed_string(payload.message).map(CandidateEntry::User)
+        }
+        (Some("event_msg"), Some("agent_message")) => typed_string(payload.message).map(|text| {
+            CandidateEntry::Ready(RenderedEntry {
+                kind: RenderedEntryKind::Codex,
+                content: text.into_owned(),
+            })
+        }),
+        (Some("event_msg"), Some("exec_command_end")) => {
+            typed_exec_command_end(payload).map(CandidateEntry::Ready)
+        }
+        (Some("event_msg"), Some("patch_apply_end")) => {
+            typed_patch_apply_end(payload).map(CandidateEntry::Ready)
+        }
+        (Some("event_msg"), Some("task_started")) => Some(CandidateEntry::Ready(
+            typed_task_lifecycle("Task started", payload),
+        )),
+        (Some("event_msg"), Some("task_complete")) => Some(CandidateEntry::Ready(
+            typed_task_lifecycle("Task complete", payload),
+        )),
+        (Some("response_item"), Some("message")) => typed_response_message(payload),
+        (Some("response_item"), Some("function_call")) => {
+            typed_tool_call(payload, "Function call").map(CandidateEntry::Ready)
+        }
+        (Some("response_item"), Some("custom_tool_call")) => {
+            typed_tool_call(payload, "Custom tool call").map(CandidateEntry::Ready)
+        }
+        (Some("response_item"), Some("function_call_output")) => {
+            typed_tool_result(payload, "Function call output").map(CandidateEntry::Ready)
+        }
+        (Some("response_item"), Some("custom_tool_call_output")) => {
+            typed_tool_result(payload, "Custom tool call output").map(CandidateEntry::Ready)
+        }
+        _ => unreachable!("typed focused source already matched supported envelope types"),
+    };
+
+    Some(entry.map(|entry| CandidateSeed {
+        is_user_message: matches!(
+            (top_type, payload_type),
+            (Some("event_msg"), Some("user_message"))
+        ) || matches!(
+            (top_type, payload_type, json_string(payload.role).as_deref()),
+            (Some("response_item"), Some("message"), Some("user"))
+        ),
+        entry,
+        source,
+        stable_id: typed_focused_stable_id(payload_type, payload),
+        timestamp: typed_timestamp(envelope).or_else(|| typed_payload_timestamp(payload)),
+    }))
 }
 
-fn extract_candidate_seeds(value: &Value) -> Vec<CandidateSeed> {
+fn json_string(raw: Option<&RawValue>) -> Option<Cow<'_, str>> {
+    serde_json::from_str::<Cow<'_, str>>(raw?.get()).ok()
+}
+
+fn typed_string(raw: Option<&RawValue>) -> Option<Cow<'_, str>> {
+    match json_string(raw)? {
+        Cow::Borrowed(text) => {
+            let text = text.trim();
+            (!text.is_empty()).then_some(Cow::Borrowed(text))
+        }
+        Cow::Owned(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else if trimmed.len() == text.len() {
+                Some(Cow::Owned(text))
+            } else {
+                Some(Cow::Owned(trimmed.to_owned()))
+            }
+        }
+    }
+}
+
+fn typed_text(raw: Option<&RawValue>) -> Option<Cow<'_, str>> {
+    let raw = raw?;
+    if raw.get().trim_start().starts_with('"') {
+        return json_string(Some(raw));
+    }
+    let value = serde_json::from_str::<Value>(raw.get()).ok()?;
+    text_from_value(&value).map(Cow::Owned)
+}
+
+fn trimmed_nonempty(text: Cow<'_, str>) -> Option<Cow<'_, str>> {
+    match text {
+        Cow::Borrowed(text) => {
+            let text = text.trim();
+            (!text.is_empty()).then_some(Cow::Borrowed(text))
+        }
+        Cow::Owned(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else if trimmed.len() == text.len() {
+                Some(Cow::Owned(text))
+            } else {
+                Some(Cow::Owned(trimmed.to_owned()))
+            }
+        }
+    }
+}
+
+fn typed_extract_text<'a>(payload: &PayloadFields<'a>) -> Option<Cow<'a, str>> {
+    [
+        payload.content,
+        payload.text,
+        payload.message,
+        payload.output,
+        payload.result,
+        payload.summary,
+    ]
+    .into_iter()
+    .find_map(typed_text)
+}
+
+fn typed_stable_id(payload: &PayloadFields<'_>) -> Option<String> {
+    [
+        payload.id,
+        payload.call_id,
+        payload.turn_id,
+        payload.turn_id_camel,
+    ]
+    .into_iter()
+    .find_map(typed_string)
+    .map(Cow::into_owned)
+}
+
+fn typed_focused_stable_id(
+    payload_type: Option<&str>,
+    payload: &PayloadFields<'_>,
+) -> Option<String> {
+    match payload_type {
+        Some(payload_type @ ("task_started" | "task_complete")) => {
+            typed_stable_id(payload).map(|stable_id| format!("{payload_type}:{stable_id}"))
+        }
+        _ => typed_stable_id(payload),
+    }
+}
+
+fn typed_timestamp(envelope: &EnvelopeFields<'_>) -> Option<String> {
+    [
+        envelope.timestamp,
+        envelope.time,
+        envelope.created_at,
+        envelope.created_at_camel,
+    ]
+    .into_iter()
+    .find_map(typed_string)
+    .map(Cow::into_owned)
+}
+
+fn typed_payload_timestamp(payload: &PayloadFields<'_>) -> Option<String> {
+    [
+        payload.timestamp,
+        payload.time,
+        payload.created_at,
+        payload.created_at_camel,
+    ]
+    .into_iter()
+    .find_map(typed_string)
+    .map(Cow::into_owned)
+}
+
+fn typed_response_message<'a>(payload: &PayloadFields<'a>) -> Option<CandidateEntry<'a>> {
+    let role = json_string(payload.role)?;
+    let content = trimmed_nonempty(typed_extract_text(payload)?)?;
+    if role == "user" {
+        return Some(CandidateEntry::User(content));
+    }
+
+    let kind = match role.as_ref() {
+        "assistant" | "model" => RenderedEntryKind::Codex,
+        "tool" => RenderedEntryKind::ToolResult,
+        "system" => RenderedEntryKind::System,
+        _ => return None,
+    };
+    Some(CandidateEntry::Ready(RenderedEntry {
+        kind,
+        content: content.into_owned(),
+    }))
+}
+
+fn typed_exec_command_end(payload: &PayloadFields<'_>) -> Option<RenderedEntry> {
+    let mut lines = vec!["Exec command finished".to_owned()];
+    if let Some(command) = typed_string(payload.command).or_else(|| typed_string(payload.cmd)) {
+        lines.push(format!("Command: {command}"));
+    }
+    if let Some(status) = typed_string(payload.status) {
+        lines.push(format!("Status: {status}"));
+    }
+    if let Some(exit_code) = typed_scalar_to_string(payload.exit_code)
+        .or_else(|| typed_scalar_to_string(payload.exit_code_camel))
+    {
+        lines.push(format!("Exit code: {exit_code}"));
+    }
+    if let Some(output) = [
+        payload.aggregated_output,
+        payload.formatted_output,
+        payload.stdout,
+        payload.stderr,
+    ]
+    .into_iter()
+    .find_map(|raw| typed_text(raw).and_then(trimmed_nonempty))
+    {
+        lines.push(output.into_owned());
+    }
+    (lines.len() > 1).then(|| RenderedEntry {
+        kind: RenderedEntryKind::ToolResult,
+        content: lines.join("\n"),
+    })
+}
+
+fn typed_patch_apply_end(payload: &PayloadFields<'_>) -> Option<RenderedEntry> {
+    let status = typed_string(payload.status)?;
+    Some(RenderedEntry {
+        kind: RenderedEntryKind::ToolResult,
+        content: format!("Patch apply status: {status}"),
+    })
+}
+
+fn typed_task_lifecycle(label: &str, payload: &PayloadFields<'_>) -> RenderedEntry {
+    let mut content = label.to_owned();
+    if let Some(turn_id) =
+        typed_string(payload.turn_id).or_else(|| typed_string(payload.turn_id_camel))
+    {
+        content.push_str("\nTurn: ");
+        content.push_str(&turn_id);
+    }
+    RenderedEntry {
+        kind: RenderedEntryKind::System,
+        content,
+    }
+}
+
+fn typed_session_meta(payload: &PayloadFields<'_>) -> Option<RenderedEntry> {
+    let mut lines = Vec::new();
+    if let Some(id) = typed_string(payload.id) {
+        lines.push(format!("Session: {id}"));
+    }
+    if let Some(provider) = typed_string(payload.model_provider) {
+        lines.push(format!("Model provider: {provider}"));
+    }
+    if let Some(version) = typed_string(payload.cli_version) {
+        lines.push(format!("CLI version: {version}"));
+    }
+    (!lines.is_empty()).then(|| RenderedEntry {
+        kind: RenderedEntryKind::System,
+        content: lines.join("\n"),
+    })
+}
+
+fn typed_tool_call(payload: &PayloadFields<'_>, label: &str) -> Option<RenderedEntry> {
+    let name = json_string(payload.name)
+        .or_else(|| json_string(payload.call_id))
+        .or_else(|| json_string(payload.id))?;
+    let mut content = format!("{label}: {name}");
+    if let Some(arguments) = typed_tool_arguments(payload) {
+        content.push('\n');
+        content.push_str(&arguments);
+    }
+    Some(RenderedEntry {
+        kind: RenderedEntryKind::ToolCall,
+        content,
+    })
+}
+
+fn typed_tool_result(payload: &PayloadFields<'_>, label: &str) -> Option<RenderedEntry> {
+    let content = match typed_extract_text(payload) {
+        Some(content) => content,
+        None => Cow::Owned(format!("{label}: {}", json_string(payload.call_id)?)),
+    };
+    let content = trimmed_nonempty(content)?.into_owned();
+    Some(RenderedEntry {
+        kind: RenderedEntryKind::ToolResult,
+        content,
+    })
+}
+
+fn typed_tool_arguments(payload: &PayloadFields<'_>) -> Option<String> {
+    if let Some(arguments) = payload.arguments {
+        if let Some(arguments) = typed_string(Some(arguments)) {
+            return Some(arguments.into_owned());
+        }
+        let value = serde_json::from_str::<Value>(arguments.get()).ok()?;
+        return matches!(value, Value::Object(_) | Value::Array(_)).then(|| value.to_string());
+    }
+    typed_string(payload.input)
+        .map(Cow::into_owned)
+        .or_else(|| typed_extract_text(payload).map(Cow::into_owned))
+}
+
+fn typed_scalar_to_string(raw: Option<&RawValue>) -> Option<String> {
+    let raw = raw?;
+    if let Some(text) = typed_string(Some(raw)) {
+        return Some(text.into_owned());
+    }
+    let value = serde_json::from_str::<Value>(raw.get()).ok()?;
+    value.as_number().map(ToString::to_string)
+}
+
+fn parsed_candidate(
+    seed: CandidateSeed,
+) -> (
+    Option<ParsedCandidate>,
+    Option<String>,
+    Option<ReferencedConversation>,
+) {
+    let (entry, reference) = match seed.entry {
+        CandidateEntry::User(content) => match decode_user_transport_borrowed(&content) {
+            Some(BorrowedUserTransport::HumanRequest { request, reference }) => {
+                (Some(classify_user_message(&request)), reference)
+            }
+            Some(BorrowedUserTransport::DelegatedHandoff { reference }) => (None, Some(reference)),
+            None => (Some(classify_user_message(&content)), None),
+        },
+        CandidateEntry::Ready(entry) if seed.is_user_message => {
+            match decode_user_transport(&entry.content) {
+                Some(DecodedUserTransport::HumanRequest { request, reference }) => {
+                    (Some(classify_user_message(&request)), reference)
+                }
+                Some(DecodedUserTransport::DelegatedHandoff { reference }) => {
+                    (None, Some(reference))
+                }
+                None => (Some(entry), None),
+            }
+        }
+        CandidateEntry::Ready(entry) => (Some(entry), None),
+    };
+    let Some(entry) = entry else {
+        return (None, None, reference);
+    };
+    let stable_key = seed
+        .stable_id
+        .map(|stable_id| format!("{}:{stable_id}", rendered_kind_key(entry.kind)));
+
+    let candidate = ParsedCandidate {
+        entry,
+        stable_slot: None,
+        source: seed.source,
+        timestamp: seed.timestamp,
+    };
+    (Some(candidate), stable_key, reference)
+}
+
+fn extract_candidate_seeds(value: &Value) -> Vec<CandidateSeed<'static>> {
     match extract_focused_seed(value) {
         Some(Some(entry)) => vec![entry],
         Some(None) => Vec::new(),
@@ -192,12 +716,12 @@ fn extract_candidate_seeds(value: &Value) -> Vec<CandidateSeed> {
     }
 }
 
-fn extract_focused_seed(value: &Value) -> Option<Option<CandidateSeed>> {
+fn extract_focused_seed(value: &Value) -> Option<Option<CandidateSeed<'static>>> {
     let top_type = string_field(value, "type")?;
     if top_type == "session_meta" {
         let payload = value.get("payload").unwrap_or(value);
         return Some(extract_session_meta(payload).map(|entry| CandidateSeed {
-            entry,
+            entry: CandidateEntry::Ready(entry),
             source: CandidateSource::EventSystem,
             stable_id: stable_id(payload),
             timestamp: timestamp(value).or_else(|| timestamp(payload)),
@@ -267,14 +791,14 @@ fn extract_focused_seed(value: &Value) -> Option<Option<CandidateSeed>> {
             (top_type, payload_type, string_field(payload, "role")),
             ("response_item", Some("message"), Some("user"))
         ),
-        entry,
+        entry: CandidateEntry::Ready(entry),
         source,
         stable_id: focused_stable_id(payload_type, payload),
         timestamp: timestamp(value).or_else(|| timestamp(payload)),
     }))
 }
 
-fn extract_fallback_seeds(value: &Value) -> Vec<CandidateSeed> {
+fn extract_fallback_seeds(value: &Value) -> Vec<CandidateSeed<'static>> {
     let mut seeds = Vec::new();
 
     if let Some(seed) = extract_fallback_seed(value) {
@@ -294,12 +818,12 @@ fn extract_fallback_seeds(value: &Value) -> Vec<CandidateSeed> {
     seeds
 }
 
-fn extract_fallback_seed(value: &Value) -> Option<CandidateSeed> {
+fn extract_fallback_seed(value: &Value) -> Option<CandidateSeed<'static>> {
     extract_role_based_entry(value)
         .or_else(|| extract_type_based_entry(value))
         .map(|entry| CandidateSeed {
             is_user_message: is_fallback_user_message(value),
-            entry,
+            entry: CandidateEntry::Ready(entry),
             source: CandidateSource::Fallback,
             stable_id: stable_id(value),
             timestamp: timestamp(value),
@@ -399,36 +923,6 @@ fn is_tool_result_type(normalized_type: &str) -> bool {
         || normalized_type.contains("end")
 }
 
-fn dedupe_candidates(candidates: Vec<ParsedCandidate>) -> Vec<ParsedCandidate> {
-    let mut selected_by_stable_key: IndexMap<String, ParsedCandidate> = IndexMap::new();
-    let mut pending = Vec::new();
-
-    for candidate in candidates {
-        if let Some(stable_key) = candidate.stable_key.clone() {
-            match selected_by_stable_key.get_mut(&stable_key) {
-                Some(selected) => {
-                    if should_replace_candidate(selected, &candidate) {
-                        let original_index = selected.original_index;
-                        *selected = candidate;
-                        selected.original_index = original_index;
-                    }
-                }
-                None => {
-                    selected_by_stable_key.insert(stable_key, candidate);
-                }
-            }
-        } else {
-            pending.push(candidate);
-        }
-    }
-
-    let mut combined = pending;
-    combined.extend(selected_by_stable_key.into_values());
-    combined.sort_by_key(|candidate| candidate.original_index);
-
-    suppress_adjacent_duplicates(combined)
-}
-
 fn suppress_adjacent_duplicates(candidates: Vec<ParsedCandidate>) -> Vec<ParsedCandidate> {
     let mut deduped: Vec<ParsedCandidate> = Vec::new();
 
@@ -436,9 +930,7 @@ fn suppress_adjacent_duplicates(candidates: Vec<ParsedCandidate>) -> Vec<ParsedC
         if let Some(previous) = deduped.last_mut() {
             if should_suppress_adjacent_duplicate(previous, &candidate) {
                 if should_replace_candidate(previous, &candidate) {
-                    let original_index = previous.original_index;
                     *previous = candidate;
-                    previous.original_index = original_index;
                 }
                 continue;
             }
@@ -455,13 +947,14 @@ fn should_suppress_adjacent_duplicate(
     candidate: &ParsedCandidate,
 ) -> bool {
     if previous.entry.kind != candidate.entry.kind
-        || previous.normalized_text != candidate.normalized_text
+        || !normalized_text_eq(&previous.entry.content, &candidate.entry.content)
     {
         return false;
     }
 
-    if let (Some(previous_key), Some(candidate_key)) = (&previous.stable_key, &candidate.stable_key)
-        && previous_key != candidate_key
+    if let (Some(previous_slot), Some(candidate_slot)) =
+        (previous.stable_slot, candidate.stable_slot)
+        && previous_slot != candidate_slot
     {
         return false;
     }
@@ -545,13 +1038,17 @@ fn timestamp(value: &Value) -> Option<String> {
     None
 }
 
-fn normalize_text(text: &str) -> String {
-    text.replace("\r\n", "\n")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim()
-        .to_ascii_lowercase()
+fn normalized_text_eq(left: &str, right: &str) -> bool {
+    let mut left = left.split_whitespace();
+    let mut right = right.split_whitespace();
+
+    loop {
+        match (left.next(), right.next()) {
+            (Some(left), Some(right)) if left.eq_ignore_ascii_case(right) => {}
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
 }
 
 fn rendered_kind_key(kind: RenderedEntryKind) -> &'static str {
@@ -857,9 +1354,96 @@ fn string_field<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, io::Cursor};
+    use std::{
+        cell::Cell,
+        fs,
+        io::{Cursor, Read},
+        rc::Rc,
+    };
 
     use super::*;
+
+    fn parse_legacy_for_differential_test(input: &str) -> ParsedChatLog {
+        let mut candidates = CandidateAccumulator::default();
+        let mut session_provenance = SessionProvenance::default();
+        let mut parsed_candidates = 0;
+        let mut ignored_lines = 0;
+        let mut malformed_lines = 0;
+        let mut observed_event_counts = IndexMap::new();
+
+        for raw_line in input.lines() {
+            let line = raw_line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let value = match serde_json::from_str::<Value>(line) {
+                Ok(value) => value,
+                Err(_) => {
+                    malformed_lines += 1;
+                    continue;
+                }
+            };
+            increment_observed_event_count(&mut observed_event_counts, &value);
+            let extracted = extract_candidate_seeds(&value);
+            if extracted.is_empty() {
+                ignored_lines += 1;
+                continue;
+            }
+            parsed_candidates += extracted.len();
+            for seed in extracted {
+                let (candidate, stable_key, reference) = parsed_candidate(seed);
+                if let Some(reference) = reference {
+                    session_provenance.observe_reference(reference);
+                }
+                if let Some(candidate) = candidate {
+                    candidates.push(candidate, stable_key);
+                }
+            }
+        }
+
+        let (entries, entry_timestamps) = candidates
+            .finish()
+            .into_iter()
+            .map(|candidate| (candidate.entry, candidate.timestamp))
+            .unzip();
+        ParsedChatLog {
+            entries,
+            entry_timestamps,
+            session_provenance,
+            parsed_candidates,
+            ignored_lines,
+            malformed_lines,
+            observed_event_counts,
+        }
+    }
+
+    struct RepeatingJsonlReader {
+        record: &'static [u8],
+        remaining: usize,
+        offset: usize,
+        max_requested: Rc<Cell<usize>>,
+    }
+
+    impl Read for RepeatingJsonlReader {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            self.max_requested
+                .set(self.max_requested.get().max(buffer.len()));
+            let mut written = 0;
+            while written < buffer.len() && self.remaining > 0 {
+                let available = self.record.len() - self.offset;
+                let count = available.min(buffer.len() - written);
+                buffer[written..written + count]
+                    .copy_from_slice(&self.record[self.offset..self.offset + count]);
+                written += count;
+                self.offset += count;
+                if self.offset == self.record.len() {
+                    self.offset = 0;
+                    self.remaining -= 1;
+                }
+            }
+            Ok(written)
+        }
+    }
     use crate::domain::ChatEntryFilter;
 
     fn event_user_message_line(message: &str) -> String {
@@ -2048,5 +2632,71 @@ mod tests {
                 .referenced_conversations
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn typed_known_path_matches_value_based_compatibility_path() {
+        let input = [
+            r#"{"timestamp":"2026-09-18T01:00:00Z","type":"session_meta","payload":{"id":"session-1","model_provider":"openai","cli_version":"1.2.3"}}"#,
+            r#"{"timestamp":"2026-09-18T01:00:01Z","type":"event_msg","payload":{"type":"user_message","id":"message-1","message":"Inspect this."}}"#,
+            r#"{"timestamp":"2026-09-18T01:00:01Z","type":"response_item","payload":{"type":"message","id":"message-1","role":"user","content":[{"type":"input_text","text":"Inspect this."}]}}"#,
+            r#"{"type":"event_msg","payload":{"type":"agent_message","message":"Working."}}"#,
+            r#"{"type":"event_msg","payload":{"type":"exec_command_end","command":"cargo test","exit_code":0,"aggregated_output":"ok"}}"#,
+            r#"{"type":"response_item","payload":{"type":"function_call","name":"read_file","arguments":{"path":"safe.jsonl"}}}"#,
+            r#"{"type":"unknown","output":[{"type":"command_output","output":"legacy output"}]}"#,
+            r#"{"type":"response_item","payload":{"type":"message","role":"developer","content":"ignored"}}"#,
+            r#"{"type":"response_item","payload":{"type":"message","role":" user ","content":"must remain ignored"}}"#,
+            r#"{"type":"response_item","payload":{"type":"message","role":"assistant","content":"","text":"must not bypass empty content"}}"#,
+            r#"{"type":"response_item","payload":{"type":"function_call","name":"","arguments":""}}"#,
+            r#"{"type":"response_item","payload":{"type":"function_call_output","call_id":"call-empty","output":""}}"#,
+            "not json",
+        ]
+        .join("\n");
+
+        assert_eq!(
+            parse_str(&input),
+            parse_legacy_for_differential_test(&input)
+        );
+    }
+
+    #[test]
+    fn adjacent_replacement_keeps_the_replacement_stable_id_semantics() {
+        let stable_then_unkeyed = [
+            r#"{"type":"event_msg","payload":{"type":"agent_message","id":"first","message":"same"}}"#,
+            r#"{"type":"response_item","payload":{"type":"message","role":"assistant","content":"same"}}"#,
+            r#"{"type":"event_msg","payload":{"type":"agent_message","id":"second","message":"same"}}"#,
+        ]
+        .join("\n");
+        assert_eq!(parse_str(&stable_then_unkeyed).entries.len(), 1);
+
+        let unkeyed_then_stable = [
+            r#"{"type":"event_msg","payload":{"type":"agent_message","message":"same"}}"#,
+            r#"{"type":"response_item","payload":{"type":"message","id":"first","role":"assistant","content":"same"}}"#,
+            r#"{"type":"event_msg","payload":{"type":"agent_message","id":"second","message":"same"}}"#,
+        ]
+        .join("\n");
+        assert_eq!(parse_str(&unkeyed_then_stable).entries.len(), 2);
+    }
+
+    #[test]
+    fn synthetic_large_jsonl_is_consumed_through_bounded_reader_chunks() {
+        const RECORDS: usize = 100_000;
+        const RECORD: &[u8] = b"{\"type\":\"unknown\"}\n";
+        let max_requested = Rc::new(Cell::new(0));
+        let reader = RepeatingJsonlReader {
+            record: RECORD,
+            remaining: RECORDS,
+            offset: 0,
+            max_requested: Rc::clone(&max_requested),
+        };
+
+        let parsed = parse_reader(reader).expect("synthetic JSONL streams successfully");
+
+        assert_eq!(parsed.ignored_lines, RECORDS);
+        assert_eq!(parsed.malformed_lines, 0);
+        assert_eq!(parsed.observed_event_counts["unknown"], RECORDS);
+        assert!(parsed.entries.is_empty());
+        assert!(max_requested.get() <= 8 * 1024);
+        assert!(RECORDS * RECORD.len() > max_requested.get() * 100);
     }
 }

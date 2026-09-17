@@ -1,9 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use backend::api::{self, LocateParentSessionRequestDto, ParseBoundaryRequest};
-use backend::export::{self, ExportWorklogRequest, ExportWorklogResult};
-use serde::Deserialize;
-use serde_json::{Value, json};
+use backend::export::{self, ExportWorklogError, ExportWorklogRequest, ExportWorklogResult};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize)]
 struct TauriFilterDto {
@@ -27,32 +26,69 @@ impl From<TauriFilterDto> for api::FilterDto {
 }
 
 #[tauri::command]
-fn parse_selected_jsonl(path: String, filter: TauriFilterDto) -> Result<Value, Value> {
+fn parse_selected_jsonl(
+    path: String,
+    filter: TauriFilterDto,
+) -> api::ApiResult<api::ParseResponseDto> {
     api::parse_for_transport(ParseBoundaryRequest {
         path,
         filter: Some(filter.into()),
     })
-    .map(|response| response.to_json())
-    .map_err(|error| error.to_json())
 }
 
 #[tauri::command]
-fn locate_parent_session(parent_thread_id: String, current_path: String) -> Result<Value, Value> {
+fn locate_parent_session(
+    parent_thread_id: String,
+    current_path: String,
+) -> api::ApiResult<api::LocateParentSessionResponseDto> {
     api::locate_parent_session_for_transport(LocateParentSessionRequestDto {
         current_path,
         parent_thread_id,
     })
-    .map(|response| response.to_json())
-    .map_err(|error| error.to_json())
+}
+
+#[derive(Debug, Serialize)]
+struct TauriErrorResponse {
+    error: TauriApiError,
+}
+
+#[derive(Debug, Serialize)]
+struct TauriApiError {
+    code: &'static str,
+    message: String,
+}
+
+impl From<ExportWorklogError> for TauriErrorResponse {
+    fn from(error: ExportWorklogError) -> Self {
+        Self {
+            error: TauriApiError {
+                code: error.code,
+                message: error.message,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ExportWorklogResponse {
+    status: &'static str,
+    bundle_path: String,
+    generated_files: Vec<String>,
+    refreshed: bool,
+    folder_opened: bool,
+    folder_open_error: Option<String>,
 }
 
 #[tauri::command]
-fn export_worklog(source_path: String, parent_directory: String) -> Result<Value, Value> {
+fn export_worklog(
+    source_path: String,
+    parent_directory: String,
+) -> Result<ExportWorklogResponse, TauriErrorResponse> {
     let response = export::export_worklog(ExportWorklogRequest {
         source_path: PathBuf::from(source_path),
         parent_directory: PathBuf::from(parent_directory),
     })
-    .map_err(|error| error.to_json())?;
+    .map_err(TauriErrorResponse::from)?;
     let folder_open_result = tauri_plugin_opener::open_path(&response.bundle_path, None::<&str>)
         .map_err(|error| error.to_string());
 
@@ -62,15 +98,19 @@ fn export_worklog(source_path: String, parent_directory: String) -> Result<Value
 fn export_worklog_response(
     response: ExportWorklogResult,
     folder_open_result: Result<(), String>,
-) -> Value {
-    let mut value = response.to_json();
+) -> ExportWorklogResponse {
     let (folder_opened, folder_open_error) = match folder_open_result {
-        Ok(()) => (true, Value::Null),
-        Err(error) => (false, json!(error)),
+        Ok(()) => (true, None),
+        Err(error) => (false, Some(error)),
     };
-    value["folder_opened"] = json!(folder_opened);
-    value["folder_open_error"] = folder_open_error;
-    value
+    ExportWorklogResponse {
+        status: "exported",
+        bundle_path: response.bundle_path,
+        generated_files: response.generated_files,
+        refreshed: response.refreshed,
+        folder_opened,
+        folder_open_error,
+    }
 }
 
 #[tauri::command]
@@ -142,9 +182,13 @@ mod tests {
         }
     }
 
+    fn response_json(response: ExportWorklogResponse) -> serde_json::Value {
+        serde_json::to_value(response).expect("typed export response serializes")
+    }
+
     #[test]
     fn export_response_reports_folder_open_success() {
-        let response = export_worklog_response(export_result(false), Ok(()));
+        let response = response_json(export_worklog_response(export_result(false), Ok(())));
 
         assert_eq!(response["status"], "exported");
         assert_eq!(response["folder_opened"], true);
@@ -153,8 +197,10 @@ mod tests {
 
     #[test]
     fn export_response_preserves_success_when_folder_open_fails() {
-        let response =
-            export_worklog_response(export_result(false), Err("Explorer unavailable".to_owned()));
+        let response = response_json(export_worklog_response(
+            export_result(false),
+            Err("Explorer unavailable".to_owned()),
+        ));
 
         assert_eq!(response["status"], "exported");
         assert_eq!(response["folder_opened"], false);
@@ -163,8 +209,10 @@ mod tests {
 
     #[test]
     fn refreshed_export_preserves_success_when_folder_open_fails() {
-        let response =
-            export_worklog_response(export_result(true), Err("Explorer unavailable".to_owned()));
+        let response = response_json(export_worklog_response(
+            export_result(true),
+            Err("Explorer unavailable".to_owned()),
+        ));
 
         assert_eq!(response["status"], "exported");
         assert_eq!(response["refreshed"], true);

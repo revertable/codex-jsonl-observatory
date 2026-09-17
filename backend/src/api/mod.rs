@@ -1,8 +1,10 @@
 use std::{
     fs, io,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
+use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::{
@@ -59,27 +61,28 @@ impl From<ChatEntryFilter> for FilterDto {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ParseResponseDto {
     pub source: LoadedFileMetadataDto,
     pub session: SessionDescriptorDto,
     pub parsed_chat_log: ParsedChatLogDto,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct SessionDescriptorDto {
     pub classification: SessionClassificationDto,
     pub identity: Option<SessionIdentityDto>,
     pub capabilities: SessionCapabilitiesDto,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SessionClassificationDto {
     Unclassified,
     GuardianReview,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct SessionIdentityDto {
     pub thread_id: Option<String>,
     pub session_id: Option<String>,
@@ -91,13 +94,13 @@ pub struct SessionIdentityDto {
     pub subagent_history_start_ordinal: Option<u64>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct SessionSourceDto {
     pub kind: &'static str,
     pub value: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 pub struct SessionCapabilitiesDto {
     pub can_show_transcript: bool,
     pub can_resume: bool,
@@ -111,7 +114,8 @@ pub struct LocateParentSessionRequestDto {
     pub parent_thread_id: String,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ParentSessionLocationStatusDto {
     Found,
     NotFound,
@@ -119,14 +123,14 @@ pub enum ParentSessionLocationStatusDto {
     Unavailable,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct LocateParentSessionResponseDto {
     pub status: ParentSessionLocationStatusDto,
     pub path: Option<String>,
     pub message: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct LoadedFileMetadataDto {
     pub file_name: Option<String>,
     pub absolute_path: String,
@@ -134,7 +138,7 @@ pub struct LoadedFileMetadataDto {
     pub resume_command: Option<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ParsedChatLogDto {
     pub entries: Vec<RenderedEntryDto>,
     pub transcript_blocks: Vec<TranscriptBlockDto>,
@@ -143,29 +147,30 @@ pub struct ParsedChatLogDto {
     pub observed_event_counts: Vec<ObservedEventCountDto>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct RenderedEntryDto {
     pub kind: EntryKindDto,
     pub label: &'static str,
-    pub content: String,
+    pub content: Arc<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct TranscriptBlockDto {
     pub entry_type: EntryKindDto,
     pub label: &'static str,
     pub title: &'static str,
-    pub content: String,
+    pub content: Arc<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ReferencedConversationDto {
     pub conversation_id: Option<String>,
     pub title: Option<String>,
     pub preview_available: bool,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum EntryKindDto {
     Context,
     Task,
@@ -176,7 +181,7 @@ pub enum EntryKindDto {
     System,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ParseCountersDto {
     pub parsed_candidates: usize,
     pub total_entries: usize,
@@ -185,18 +190,18 @@ pub struct ParseCountersDto {
     pub malformed_lines: usize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ObservedEventCountDto {
     pub event: String,
     pub count: usize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ErrorResponseDto {
     pub error: ApiErrorDto,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ApiErrorDto {
     pub code: String,
     pub message: String,
@@ -235,7 +240,7 @@ pub fn parse_selected_file(request: ParseRequestDto) -> ApiResult<ParseResponseD
     Ok(ParseResponseDto {
         source,
         session,
-        parsed_chat_log: ParsedChatLogDto::from_domain(&parsed, &filter),
+        parsed_chat_log: ParsedChatLogDto::from_domain_owned(parsed, &filter),
     })
 }
 
@@ -471,31 +476,21 @@ impl LoadedFileMetadataDto {
 
 impl ParsedChatLogDto {
     pub fn from_domain(parsed: &ParsedChatLog, filter: &ChatEntryFilter) -> Self {
-        let visible_entries = parsed
+        let mut entries = Vec::new();
+        let mut transcript_blocks = Vec::new();
+        for entry in parsed
             .entries
             .iter()
             .filter(|entry| api_filter_allows_kind(filter, entry.kind))
-            .collect::<Vec<_>>();
-        let entries = visible_entries
-            .iter()
-            .map(|entry| RenderedEntryDto {
-                kind: EntryKindDto::from(entry.kind),
-                label: entry.kind.label(),
-                content: entry.content.clone(),
-            })
-            .collect();
-        let transcript_blocks = visible_entries
-            .iter()
-            .map(|entry| {
-                let label = entry.kind.label();
-                TranscriptBlockDto {
-                    entry_type: EntryKindDto::from(entry.kind),
-                    label,
-                    title: label,
-                    content: entry.content.clone(),
-                }
-            })
-            .collect();
+        {
+            push_entry_dtos(
+                &mut entries,
+                &mut transcript_blocks,
+                entry.kind,
+                Arc::new(entry.content.clone()),
+            );
+        }
+        let visible_entries = entries.len();
         let referenced_conversations = parsed
             .session_provenance
             .referenced_conversations
@@ -518,7 +513,55 @@ impl ParsedChatLogDto {
             counters: ParseCountersDto {
                 parsed_candidates: parsed.parsed_candidates,
                 total_entries: parsed.entries.len(),
-                visible_entries: visible_entries.len(),
+                visible_entries,
+                ignored_lines: parsed.ignored_lines,
+                malformed_lines: parsed.malformed_lines,
+            },
+            observed_event_counts,
+        }
+    }
+
+    pub fn from_domain_owned(parsed: ParsedChatLog, filter: &ChatEntryFilter) -> Self {
+        let total_entries = parsed.entries.len();
+        let mut entries = Vec::new();
+        let mut transcript_blocks = Vec::new();
+        for entry in parsed
+            .entries
+            .into_iter()
+            .filter(|entry| api_filter_allows_kind(filter, entry.kind))
+        {
+            push_entry_dtos(
+                &mut entries,
+                &mut transcript_blocks,
+                entry.kind,
+                Arc::new(entry.content),
+            );
+        }
+        let visible_entries = entries.len();
+        let referenced_conversations = parsed
+            .session_provenance
+            .referenced_conversations
+            .into_iter()
+            .map(|reference| ReferencedConversationDto {
+                conversation_id: reference.conversation_id,
+                title: reference.title,
+                preview_available: reference.preview_available,
+            })
+            .collect();
+        let observed_event_counts = parsed
+            .observed_event_counts
+            .into_iter()
+            .map(|(event, count)| ObservedEventCountDto { event, count })
+            .collect();
+
+        Self {
+            entries,
+            transcript_blocks,
+            referenced_conversations,
+            counters: ParseCountersDto {
+                parsed_candidates: parsed.parsed_candidates,
+                total_entries,
+                visible_entries,
                 ignored_lines: parsed.ignored_lines,
                 malformed_lines: parsed.malformed_lines,
             },
@@ -535,6 +578,26 @@ impl ParsedChatLogDto {
             "observed_event_counts": self.observed_event_counts.iter().map(ObservedEventCountDto::to_json).collect::<Vec<_>>(),
         })
     }
+}
+
+fn push_entry_dtos(
+    entries: &mut Vec<RenderedEntryDto>,
+    transcript_blocks: &mut Vec<TranscriptBlockDto>,
+    kind: RenderedEntryKind,
+    content: Arc<String>,
+) {
+    let label = kind.label();
+    entries.push(RenderedEntryDto {
+        kind: EntryKindDto::from(kind),
+        label,
+        content: Arc::clone(&content),
+    });
+    transcript_blocks.push(TranscriptBlockDto {
+        entry_type: EntryKindDto::from(kind),
+        label,
+        title: label,
+        content,
+    });
 }
 
 fn api_filter_allows_kind(filter: &ChatEntryFilter, kind: RenderedEntryKind) -> bool {
@@ -819,6 +882,10 @@ mod tests {
         );
         assert_eq!(dto.entries[0].label, "[YOU]");
         assert_eq!(dto.transcript_blocks[1].title, "[CODEX]");
+        assert!(Arc::ptr_eq(
+            &dto.entries[0].content,
+            &dto.transcript_blocks[0].content
+        ));
         assert_eq!(
             dto.observed_event_counts,
             vec![
