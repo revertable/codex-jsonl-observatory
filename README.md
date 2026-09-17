@@ -1,5 +1,7 @@
 # Codex JSONL Observatory
 
+[![Latest release](https://img.shields.io/github/v/release/revertable/codex-jsonl-observatory?display_name=tag&label=release)](https://github.com/revertable/codex-jsonl-observatory/releases/latest)
+
 **Language:** English | [한국어](README.ko.md)
 
 Codex JSONL Observatory is a local desktop tool for reading Codex session JSONL files and exporting versionable worklog bundles. Supported session sources include Codex CLI and the Codex Windows app. Built with Rust, Svelte, and Tauri, it processes session data locally.
@@ -10,7 +12,7 @@ Use it for transcript reading, capturing a filtered transcript as text, or turni
 
 Codex JSONL Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
 
-`v1.1.1` is the current public Windows portable release. It sharpens transcript focus with conversation-first default filters, adds a quick return to the top, and removes redundant terminal spacing.
+The current public Windows portable release sharpens transcript focus with conversation-first default filters, adds a quick return to the top, and removes redundant terminal spacing.
 
 Just download the Windows portable zip, unzip it, and run the app. No server setup, cloud account, or developer environment is required.
 
