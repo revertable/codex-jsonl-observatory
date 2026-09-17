@@ -11,7 +11,7 @@ Codex JSONL Observatory
 Purpose:
 
 ```text
-A local-first Rust + Svelte web viewer for Codex session JSONL logs from sources including Codex CLI and the Codex Windows app.
+A local-first Rust + Svelte + Tauri desktop observatory for Codex session JSONL logs.
 ```
 
 This project is not only a viewer.
@@ -26,10 +26,10 @@ The original Kotlin/Swing implementation is maintained separately.
 Original Kotlin/Swing version:
 
 ```text
-https://github.com/RGJ-sw1123r/codex-chat-viewer
+https://github.com/revertable/codex-chat-viewer
 ```
 
-Codex JSONL Observatory rebuilds the same idea as a Rust + Svelte local web observatory.
+Codex JSONL Observatory began as a Rust/Svelte port of that idea and now operates as its own Tauri desktop product. The Kotlin/Swing repository remains read-only historical and behavioral reference material, not the current product contract.
 
 ---
 
@@ -43,7 +43,7 @@ Signals             = raw JSONL events
 Observations        = parsed/rendered entries
 Observatory Core    = Rust backend
 Control Room        = Svelte frontend
-Observation Report  = Markdown export
+Observation Report  = versionable Worklog bundle
 Sample Signals      = sanitized sample JSONL files
 Field Kit           = release package
 ```
@@ -59,11 +59,13 @@ Expected top-level structure:
 
 ```text
 backend/       Rust Observatory Core
-frontend/      Svelte Control Room
-docs/          planning, migration notes, and boundary documents
-sample-data/   sanitized sample JSONL files only
-release/       local release packaging workspace
+frontend/      Svelte Control Room plus the Tauri desktop bridge
+docs/          current boundary/architecture documents and historical records
+sample-data/   optional sanitized JSONL fixtures only
+release/       local packaging workspace; portable ZIP output is ignored
 ```
+
+Within `frontend/`, `src/` contains the Svelte application and `src-tauri/` contains the desktop bridge, capabilities, configuration, and packaging support.
 
 Do not rename top-level areas without explicit approval.
 
@@ -76,21 +78,27 @@ The Rust backend is the Observatory Core.
 It should handle:
 
 * reading Codex JSONL files
+* inspecting and classifying session identity before transcript parsing
+* routing ordinary and specialized sessions
 * parsing raw signals
+* conservatively separating human requests from recognized transport/context envelopes
 * creating observations
-* preserving parser behavior from the Kotlin/Swing reference where appropriate
-* exposing local API endpoints
-* generating Observation Reports
-* serving built frontend assets in release mode
+* locating verified parent sessions by thread id
+* exposing typed transport DTOs to the Tauri command layer
+* generating versionable Worklog bundles
 
 Prefer clear technical names:
 
 ```text
 backend/src/parser/
 backend/src/domain/
+backend/src/inspection/
+backend/src/session/
 backend/src/api/
 backend/src/export/
 ```
+
+The backend is a Rust library used by the Tauri application. It is not currently an HTTP server and does not expose a standalone local web API.
 
 Avoid decorative names that hide purpose.
 
@@ -104,25 +112,47 @@ It should handle:
 
 * file/path input flow
 * parsed observation display
-* search controls
 * filter controls
 * view mode controls
 * collapse/expand interaction
-* export action UI
+* transcript capture and refresh actions
+* Worklog export action UI
+* specialized-session presentation and parent navigation
 * user-visible status and error display
 
-Good component names:
+Current responsibility-oriented component areas include:
 
 ```text
-ControlRoom.svelte
-ObservationList.svelte
-ObservationEntry.svelte
-SignalPanel.svelte
-FilterConsole.svelte
-SearchConsole.svelte
+frontend/src/lib/control-room/
+frontend/src/lib/rendering/
+frontend/src/lib/load-workflow.ts
+frontend/src/lib/parse-contract.ts
+frontend/src/lib/specialized-session.ts
 ```
 
-Avoid vague names:
+---
+
+## Tauri Desktop Responsibility
+
+`frontend/src-tauri/` is the desktop integration boundary.
+
+It should handle:
+
+* Tauri commands that adapt frontend requests to backend DTOs
+* native file and folder dialogs
+* opening exported folders or related external links
+* desktop capabilities and application configuration
+* portable Windows packaging support
+
+Business parsing, session classification, parent lookup, and Worklog generation remain in the backend crate rather than Tauri command handlers.
+
+The current command bridge calls the backend directly in-process. Do not describe this as a network API or local server.
+
+---
+
+## Naming Guidance
+
+Prefer names that expose technical responsibility. Avoid decorative names such as:
 
 ```text
 NebulaPanel.svelte

@@ -4,6 +4,7 @@ import type {
   LoadedFileMetadataDto,
   ObservedEventCountDto,
   ParseResponseDto,
+  ReferencedConversationDto,
   SessionDescriptorDto,
   TranscriptBlockDto,
 } from './parse-contract'
@@ -22,6 +23,7 @@ export interface LoadedFileState {
 
 export interface ParsedObservationState {
   transcript_blocks: TranscriptBlockDto[]
+  referenced_conversations: ReferencedConversationDto[]
 }
 
 export interface LoadWorkflowState {
@@ -84,6 +86,7 @@ export function applyParseResponse(
 ): LoadWorkflowState {
   const allObservations = {
     transcript_blocks: response.parsed_chat_log.transcript_blocks,
+    referenced_conversations: response.parsed_chat_log.referenced_conversations,
   }
   const observations = projectObservations(allObservations, state.filter)
 
@@ -135,6 +138,7 @@ function projectObservations(
     transcript_blocks: observations.transcript_blocks.filter((block) =>
       filterAllowsKind(block.entry_type, filter),
     ),
+    referenced_conversations: observations.referenced_conversations,
   }
 }
 
@@ -172,5 +176,6 @@ function clearLoadedResult(state: LoadWorkflowState): LoadWorkflowState {
 function emptyObservations(): ParsedObservationState {
   return {
     transcript_blocks: [],
+    referenced_conversations: [],
   }
 }

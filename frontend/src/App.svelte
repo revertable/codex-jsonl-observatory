@@ -328,6 +328,7 @@
             showIdentityNote={workflow.status !== 'loaded'}
             observedEventCounts={workflow.loaded_file.observed_event_counts}
             blocks={workflow.observations.transcript_blocks}
+            references={workflow.observations.referenced_conversations}
           />
         {:else if renderPathForTheme(selectedTheme) === 'markdown'}
           <MarkdownTranscript
@@ -335,6 +336,7 @@
             isLoaded={workflow.status === 'loaded'}
             observedEventCounts={workflow.loaded_file.observed_event_counts}
             blocks={workflow.observations.transcript_blocks}
+            references={workflow.observations.referenced_conversations}
           />
         {:else}
           <ChatTranscript
@@ -342,6 +344,7 @@
             isLoaded={workflow.status === 'loaded'}
             observedEventCounts={workflow.loaded_file.observed_event_counts}
             blocks={workflow.observations.transcript_blocks}
+            references={workflow.observations.referenced_conversations}
           />
         {/if}
       {/key}

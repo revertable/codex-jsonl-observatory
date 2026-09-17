@@ -1,6 +1,10 @@
 # Source App Parity Checklist
 
-This checklist records source-app behavior from the original Kotlin/Swing `codex-chat-viewer` app so the Rust/Svelte port can preserve intentional parity while separating backend/API, frontend, rendering/export, and parser/domain work.
+> **Status: historical reference.** This checklist preserves observations made while evaluating the original Kotlin/Swing application for the Rust/Svelte port. Its `required parity`, `planned ...`, and `possible new enhancement` labels are historical classifications, not current product requirements, open tasks, or an active roadmap. Current behavior is defined by the present repository implementation and current boundary/architecture documents.
+
+The product has intentionally diverged from the original app in several areas, including the Tauri in-process command boundary, `DM Style (Dark)`, filtered transcript capture, full-session versionable Worklog bundles, specialized Guardian session routing and parent navigation, and the distinction between human-authored requests and injected transport/context. The detailed checklist below remains useful for provenance and comparison, but must not override those accepted product decisions.
+
+This checklist recorded source-app behavior from the original Kotlin/Swing `codex-chat-viewer` app so the Rust/Svelte port could evaluate intentional parity while separating backend/API, frontend, rendering/export, and parser/domain work.
 
 The original app is read-only reference material. This document is documentation only and does not authorize API endpoints, backend source changes, frontend source changes, export implementation, rendering/theme implementation, sample data, dependencies, or changes to `../codex-chat-viewer`.
 
@@ -38,14 +42,14 @@ Reference tests observed:
 - `MarkdownExportControllerTest.kt`
 - `MarkdownTranscriptExporterTest.kt`
 
-## Classification Legend
+## Historical Classification Legend
 
-- `required parity`: behavior should exist in the Rust/Svelte port unless a later decision explicitly rejects it.
-- `already covered by current parser/domain work`: behavior is already represented in current Rust parser/domain planning or implementation.
-- `planned backend/API work`: behavior should be exposed or coordinated by the backend/API layer later.
-- `planned frontend work`: behavior belongs primarily in the Svelte Control Room.
-- `planned export/rendering work`: behavior belongs to transcript rendering, theme rendering, or Markdown export/report generation.
-- `possible new enhancement`: behavior was not found in the original app and must not be treated as parity.
+- `required parity`: behavior was marked for preservation unless a later product decision rejected it.
+- `already covered by current parser/domain work`: behavior was represented in parser/domain planning or implementation at the time.
+- `planned backend/API work`: behavior was assigned to a later backend/API milestone.
+- `planned frontend work`: behavior was assigned primarily to a later Svelte Control Room milestone.
+- `planned export/rendering work`: behavior was assigned to later transcript rendering, theme rendering, or Markdown export/report work.
+- `possible new enhancement`: behavior was not found in the original app and was not treated as parity at the time.
 
 ## 1. App Startup and Main Workflow
 

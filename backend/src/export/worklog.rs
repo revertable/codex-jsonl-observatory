@@ -12,7 +12,7 @@ use time::{
 
 use crate::{
     api::LoadedFileMetadataDto,
-    domain::{ParsedChatLog, RenderedEntry, RenderedEntryKind},
+    domain::{ParsedChatLog, ReferencedConversation, RenderedEntry, RenderedEntryKind},
     session,
 };
 
@@ -179,6 +179,7 @@ fn export_worklog_at(
         &source_key,
         bundle_start,
         export_time,
+        &parsed.session_provenance.referenced_conversations,
         &prelude,
         &units,
         &unit_files,
@@ -255,6 +256,7 @@ fn write_staged_bundle(
     source_key: &str,
     bundle_start: OffsetDateTime,
     export_time: OffsetDateTime,
+    referenced_conversations: &[ReferencedConversation],
     prelude: &[WorklogBlock<'_>],
     units: &[WorkUnit<'_>],
     unit_files: &[String],
@@ -265,6 +267,7 @@ fn write_staged_bundle(
         source_key,
         bundle_start,
         export_time,
+        referenced_conversations,
         prelude,
         unit_files,
     );
@@ -311,6 +314,7 @@ fn render_index(
     source_key: &str,
     bundle_start: OffsetDateTime,
     export_time: OffsetDateTime,
+    referenced_conversations: &[ReferencedConversation],
     prelude: &[WorklogBlock<'_>],
     unit_files: &[String],
 ) -> String {
@@ -324,6 +328,7 @@ fn render_index(
         format_rfc3339(bundle_start),
         format_rfc3339(export_time),
     ));
+    output.push_str(&render_referenced_conversations(referenced_conversations));
     output.push_str("## Review Warning\n\n");
     output.push_str(REVIEW_WARNING);
     output.push_str("\n\n## Bundle Structure\n\n");
@@ -380,6 +385,41 @@ fn render_block(block: WorklogBlock<'_>) -> String {
     }
     output.push_str(&format!("{fence}text\n{content}\n{fence}\n\n"));
     output
+}
+
+fn render_referenced_conversations(references: &[ReferencedConversation]) -> String {
+    let mut output = String::new();
+    for reference in references {
+        output.push_str("## Referenced ChatGPT conversation\n\n");
+        output.push_str(&format!(
+            "- Title: {}\n- Conversation ID: {}\n- Preview available: {}\n\n",
+            markdown_inline_value(reference.title.as_deref().unwrap_or("Not provided")),
+            markdown_inline_value(
+                reference
+                    .conversation_id
+                    .as_deref()
+                    .unwrap_or("Not provided")
+            ),
+            if reference.preview_available {
+                "yes"
+            } else {
+                "no"
+            },
+        ));
+    }
+    output
+}
+
+fn markdown_inline_value(value: &str) -> String {
+    let value = value.replace(['\r', '\n'], " ");
+    let longest = value
+        .as_bytes()
+        .split(|byte| *byte != b'`')
+        .map(|run| run.len())
+        .max()
+        .unwrap_or(0);
+    let fence = "`".repeat(longest + 1);
+    format!("{fence}{value}{fence}")
 }
 
 fn safe_fence(content: &str) -> String {
@@ -824,6 +864,128 @@ mod tests {
             fs::read_to_string(target.join("user-note.md")).expect("note remains"),
             "untouched"
         );
+
+        fs::remove_dir_all(&root).expect("remove test root");
+    }
+
+    #[test]
+    fn handoff_worklog_includes_reference_metadata_but_not_preview_body() {
+        let root = test_root("handoff-reference");
+        fs::create_dir_all(&root).expect("create test root");
+        let source = root.join("11111111-2222-3333-4444-555555555555.jsonl");
+        let handoff = concat!(
+            "## Referenced ChatGPT conversation:\n",
+            "Transport guidance.\n",
+            r#"{"conversationId":"conversation-1","title":"Design discussion","priorConversation":{"conversation":[{"role":"user","content":[{"text":"private preview sentinel"}]}]}}"#,
+            "\n## My request:\n",
+            "Continue the implementation."
+        );
+        fs::write(
+            &source,
+            [
+                json!({"timestamp":"2026-06-20T14:29:00Z","type":"session_meta","payload":{"id":"11111111-2222-3333-4444-555555555555"}}).to_string(),
+                json!({"timestamp":"2026-06-20T14:30:12Z","type":"response_item","payload":{"type":"message","role":"user","content":handoff}}).to_string(),
+            ]
+            .join("\n"),
+        )
+        .expect("write source");
+
+        let result = export_worklog_at(
+            ExportWorklogRequest {
+                source_path: source,
+                parent_directory: root.clone(),
+            },
+            OffsetDateTime::parse("2026-06-22T10:00:00Z", &Rfc3339).expect("time"),
+            utc_offset,
+        )
+        .expect("export succeeds");
+        let bundle = PathBuf::from(result.bundle_path);
+        let index = fs::read_to_string(bundle.join(INDEX_FILE)).expect("index");
+        let unit = fs::read_to_string(bundle.join("001_143012.md")).expect("work unit");
+
+        assert!(index.contains("## Referenced ChatGPT conversation"));
+        assert!(index.contains("Title: `Design discussion`"));
+        assert!(index.contains("Conversation ID: `conversation-1`"));
+        assert!(index.contains("Preview available: yes"));
+        assert!(unit.contains("Continue the implementation."));
+        assert!(!unit.contains("Referenced ChatGPT conversation"));
+        assert!(!unit.contains("private preview sentinel"));
+        assert!(!unit.contains("Transport guidance."));
+
+        fs::remove_dir_all(&root).expect("remove test root");
+    }
+
+    #[test]
+    fn worklog_marks_null_or_empty_preview_as_unavailable() {
+        let rendered = render_referenced_conversations(&[ReferencedConversation {
+            conversation_id: Some("conversation-1".to_owned()),
+            title: None,
+            preview_available: false,
+        }]);
+
+        assert!(rendered.contains("Preview available: no"));
+        assert!(rendered.contains("Title: `Not provided`"));
+    }
+
+    #[test]
+    fn ambient_context_and_delegated_task_do_not_leak_into_worklog() {
+        let root = test_root("transport-redaction");
+        fs::create_dir_all(&root).expect("create test root");
+        let source = root.join("11111111-2222-3333-4444-555555555555.jsonl");
+        let delegated = concat!(
+            "## Referenced ChatGPT conversation:\n",
+            "Transport guidance sentinel.\n",
+            r#"{"conversationId":"conversation-1","title":"Design discussion","priorConversation":{"conversation":[{"role":"user","content":[{"text":"preview body sentinel"}]}]}}"#,
+            "\n## My request:\n",
+            "Continuing from [Design discussion](chatgpt-conversation://conversation-1): delegated task sentinel."
+        );
+        let ambient = concat!(
+            "<in-app-browser-context source=\"ambient-ui-state\">\n",
+            "ambient URL and local path sentinel\n",
+            "</in-app-browser-context>\n\n",
+            "## My request:\n",
+            "actual human request"
+        );
+        fs::write(
+            &source,
+            [
+                json!({"timestamp":"2026-06-20T14:29:00Z","type":"session_meta","payload":{"id":"11111111-2222-3333-4444-555555555555"}}).to_string(),
+                json!({"timestamp":"2026-06-20T14:30:00Z","type":"response_item","payload":{"type":"message","role":"user","content":delegated}}).to_string(),
+                json!({"timestamp":"2026-06-20T14:31:00Z","type":"response_item","payload":{"type":"message","role":"user","content":ambient}}).to_string(),
+            ]
+            .join("\n"),
+        )
+        .expect("write source");
+
+        let result = export_worklog_at(
+            ExportWorklogRequest {
+                source_path: source,
+                parent_directory: root.clone(),
+            },
+            OffsetDateTime::parse("2026-06-22T10:00:00Z", &Rfc3339).expect("time"),
+            utc_offset,
+        )
+        .expect("export succeeds");
+        let bundle = PathBuf::from(result.bundle_path);
+        let index = fs::read_to_string(bundle.join(INDEX_FILE)).expect("index");
+        let unit = fs::read_to_string(bundle.join("001_143100.md")).expect("work unit");
+        let exported = format!("{index}\n{unit}");
+
+        assert!(index.contains("Conversation ID: `conversation-1`"));
+        assert!(unit.contains("actual human request"));
+        for hidden in [
+            "Transport guidance sentinel",
+            "preview body sentinel",
+            "delegated task sentinel",
+            "ambient URL and local path sentinel",
+            "## My request:",
+            "in-app-browser-context",
+        ] {
+            assert!(
+                !exported.contains(hidden),
+                "unexpected transport content: {hidden}"
+            );
+        }
 
         fs::remove_dir_all(&root).expect("remove test root");
     }

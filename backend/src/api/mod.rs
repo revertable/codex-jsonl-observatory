@@ -6,7 +6,7 @@ use std::{
 use serde_json::{Value, json};
 
 use crate::{
-    domain::{ChatEntryFilter, ParsedChatLog, RenderedEntryKind},
+    domain::{ChatEntryFilter, ParsedChatLog, ReferencedConversation, RenderedEntryKind},
     inspection::{SessionClassification, SessionIdentity, SessionSourceIdentity, inspect_reader},
     session,
     session::locator::SessionLocation,
@@ -138,6 +138,7 @@ pub struct LoadedFileMetadataDto {
 pub struct ParsedChatLogDto {
     pub entries: Vec<RenderedEntryDto>,
     pub transcript_blocks: Vec<TranscriptBlockDto>,
+    pub referenced_conversations: Vec<ReferencedConversationDto>,
     pub counters: ParseCountersDto,
     pub observed_event_counts: Vec<ObservedEventCountDto>,
 }
@@ -155,6 +156,13 @@ pub struct TranscriptBlockDto {
     pub label: &'static str,
     pub title: &'static str,
     pub content: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReferencedConversationDto {
+    pub conversation_id: Option<String>,
+    pub title: Option<String>,
+    pub preview_available: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -488,6 +496,12 @@ impl ParsedChatLogDto {
                 }
             })
             .collect();
+        let referenced_conversations = parsed
+            .session_provenance
+            .referenced_conversations
+            .iter()
+            .map(ReferencedConversationDto::from_domain)
+            .collect();
         let observed_event_counts = parsed
             .observed_event_counts
             .iter()
@@ -500,6 +514,7 @@ impl ParsedChatLogDto {
         Self {
             entries,
             transcript_blocks,
+            referenced_conversations,
             counters: ParseCountersDto {
                 parsed_candidates: parsed.parsed_candidates,
                 total_entries: parsed.entries.len(),
@@ -515,6 +530,7 @@ impl ParsedChatLogDto {
         json!({
             "entries": self.entries.iter().map(RenderedEntryDto::to_json).collect::<Vec<_>>(),
             "transcript_blocks": self.transcript_blocks.iter().map(TranscriptBlockDto::to_json).collect::<Vec<_>>(),
+            "referenced_conversations": self.referenced_conversations.iter().map(ReferencedConversationDto::to_json).collect::<Vec<_>>(),
             "counters": self.counters.to_json(),
             "observed_event_counts": self.observed_event_counts.iter().map(ObservedEventCountDto::to_json).collect::<Vec<_>>(),
         })
@@ -539,6 +555,24 @@ impl RenderedEntryDto {
             "kind": self.kind.as_str(),
             "label": self.label,
             "content": self.content,
+        })
+    }
+}
+
+impl ReferencedConversationDto {
+    fn from_domain(reference: &ReferencedConversation) -> Self {
+        Self {
+            conversation_id: reference.conversation_id.clone(),
+            title: reference.title.clone(),
+            preview_available: reference.preview_available,
+        }
+    }
+
+    fn to_json(&self) -> Value {
+        json!({
+            "conversation_id": self.conversation_id,
+            "title": self.title,
+            "preview_available": self.preview_available,
         })
     }
 }
@@ -692,7 +726,9 @@ fn is_word_byte(byte: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::{RenderedEntry, RenderedEntryKind};
+    use crate::domain::{
+        ReferencedConversation, RenderedEntry, RenderedEntryKind, SessionProvenance,
+    };
     use indexmap::IndexMap;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -737,6 +773,7 @@ mod tests {
                 },
             ],
             entry_timestamps: vec![None; 5],
+            session_provenance: SessionProvenance::default(),
             parsed_candidates: 5,
             ignored_lines: 3,
             malformed_lines: 1,
@@ -795,6 +832,27 @@ mod tests {
                 }
             ]
         );
+    }
+
+    #[test]
+    fn api_projects_minimal_session_reference_without_preview_body() {
+        let mut parsed = parsed_log();
+        parsed.session_provenance = SessionProvenance {
+            referenced_conversations: vec![ReferencedConversation {
+                conversation_id: Some("conversation-1".to_owned()),
+                title: Some("Design discussion".to_owned()),
+                preview_available: true,
+            }],
+        };
+
+        let dto = ParsedChatLogDto::from_domain(&parsed, &ChatEntryFilter::all());
+        let json = dto.to_json();
+        let reference = &json["referenced_conversations"][0];
+
+        assert_eq!(reference["conversation_id"], "conversation-1");
+        assert_eq!(reference["title"], "Design discussion");
+        assert_eq!(reference["preview_available"], true);
+        assert!(reference.get("preview_messages").is_none());
     }
 
     #[test]

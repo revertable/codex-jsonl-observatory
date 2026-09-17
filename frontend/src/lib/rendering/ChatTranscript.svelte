@@ -1,8 +1,9 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import type { ObservedEventCountDto, TranscriptBlockDto } from '../parse-contract'
+  import type { ObservedEventCountDto, ReferencedConversationDto, TranscriptBlockDto } from '../parse-contract'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
+  import ConversationReferences from './ConversationReferences.svelte'
 
   const COSMIC_HORIZON_URL = 'https://riu-salze-studio.gitbook.io/cosmic-horizon'
 
@@ -11,9 +12,10 @@
     isLoaded: boolean
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
+    references: ReferencedConversationDto[]
   }
 
-  let { theme, isLoaded, observedEventCounts, blocks }: Props = $props()
+  let { theme, isLoaded, observedEventCounts, blocks, references }: Props = $props()
   let collapsedBlocks = $state<Record<number, boolean>>({})
 
   const displayedEventCounts = $derived(
@@ -55,6 +57,11 @@
   </header>
 
   {#if isLoaded}
+    {#if references.length > 0}
+      <div class="chat-blocks">
+        <ConversationReferences {references} />
+      </div>
+    {/if}
     {#if blocks.length === 0}
       <section class="chat-notice">
         <p>No renderable chat messages found in this JSONL file.</p>

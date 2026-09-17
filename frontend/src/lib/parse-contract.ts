@@ -65,6 +65,7 @@ export interface LoadedFileMetadataDto {
 export interface ParsedChatLogDto {
   entries: RenderedEntryDto[]
   transcript_blocks: TranscriptBlockDto[]
+  referenced_conversations: ReferencedConversationDto[]
   counters: ParseCountersDto
   observed_event_counts: ObservedEventCountDto[]
 }
@@ -80,6 +81,12 @@ export interface TranscriptBlockDto {
   label: string
   title: string
   content: string
+}
+
+export interface ReferencedConversationDto {
+  conversation_id: string | null
+  title: string | null
+  preview_available: boolean
 }
 
 export interface ParseCountersDto {
