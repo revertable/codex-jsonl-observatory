@@ -4,6 +4,7 @@
   interface Props {
     status: LoadStatus
     hasSelectedPath: boolean
+    canCaptureTranscript: boolean
     actionStatusMessage: string
     onCapture: () => void | Promise<void>
     onRefresh: () => void | Promise<void>
@@ -12,6 +13,7 @@
   let {
     status,
     hasSelectedPath,
+    canCaptureTranscript,
     actionStatusMessage,
     onCapture,
     onRefresh,
@@ -26,7 +28,7 @@
     <button
       type="button"
       class="refresh-button"
-      disabled={status !== 'loaded'}
+      disabled={status !== 'loaded' || !canCaptureTranscript}
       onclick={onCapture}
     >
       Capture Transcript

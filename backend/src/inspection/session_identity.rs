@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufReader, Read};
 
 use serde_json::Value;
 
@@ -84,10 +84,21 @@ pub fn inspect_str(input: &str) -> SessionInspection {
     SessionInspection::unclassified()
 }
 
-pub fn inspect_reader<R: Read>(mut reader: R) -> io::Result<SessionInspection> {
-    let mut bytes = Vec::new();
-    reader.read_to_end(&mut bytes)?;
-    Ok(inspect_str(&String::from_utf8_lossy(&bytes)))
+pub fn inspect_reader<R: Read>(reader: R) -> io::Result<SessionInspection> {
+    let mut reader = BufReader::new(reader);
+    let mut line = Vec::new();
+
+    loop {
+        line.clear();
+        if reader.read_until(b'\n', &mut line)? == 0 {
+            return Ok(SessionInspection::unclassified());
+        }
+
+        let inspection = inspect_str(&String::from_utf8_lossy(&line));
+        if inspection.identity.is_some() {
+            return Ok(inspection);
+        }
+    }
 }
 
 fn extract_identity(payload: &Value) -> SessionIdentity {
@@ -279,6 +290,21 @@ mod tests {
         assert_eq!(
             inspection.classification,
             SessionClassification::GuardianReview
+        );
+    }
+
+    #[test]
+    fn reader_inspection_preserves_lossy_handling_before_session_metadata() {
+        let input = b"\xff\n{\"type\":\"session_meta\",\"payload\":{\"id\":\"thread\"}}";
+
+        let inspection = inspect_reader(Cursor::new(input)).expect("inspection succeeds");
+
+        assert_eq!(
+            inspection
+                .identity
+                .and_then(|identity| identity.thread_id)
+                .as_deref(),
+            Some("thread")
         );
     }
 }

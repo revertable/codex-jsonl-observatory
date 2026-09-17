@@ -1,13 +1,19 @@
 <script lang="ts">
   import type { LoadStatus } from '../load-workflow'
-  import type { FilterDto, LoadedFileMetadataDto } from '../parse-contract'
+  import type {
+    FilterDto,
+    LoadedFileMetadataDto,
+    SessionDescriptorDto,
+  } from '../parse-contract'
   import { transcriptThemes, type TranscriptThemeName } from '../rendering/transcript-themes'
+  import { isSpecializedSession, presentationForSession } from '../specialized-session'
 
   interface Props {
     status: LoadStatus
     selectedPath: string
     friendlySelectedPath: string
     metadata: LoadedFileMetadataDto | null
+    session: SessionDescriptorDto | null
     filter: FilterDto
     selectedTheme: TranscriptThemeName
     isExportingWorklog: boolean
@@ -28,6 +34,7 @@
     selectedPath,
     friendlySelectedPath,
     metadata,
+    session,
     filter,
     selectedTheme,
     isExportingWorklog,
@@ -50,6 +57,11 @@
     ['show_tool_result', 'Tool results'],
     ['show_meta', 'Meta'],
   ] as const
+
+  const specialized = $derived(isSpecializedSession(session))
+  const specializedPresentation = $derived(
+    session !== null && specialized ? presentationForSession(session) : null,
+  )
 </script>
 
 <header class="app-header" aria-labelledby="app-title">
@@ -113,16 +125,20 @@
         <dt>Session ID</dt>
         <dd>{metadata?.session_id ?? 'Not detected'}</dd>
       </div>
+      <div>
+        <dt>Session type</dt>
+        <dd>{specializedPresentation?.label ?? (status === 'loaded' ? 'Ordinary session' : 'Not loaded')}</dd>
+      </div>
     </dl>
 
     <div class="resume-row">
       <span>Resume command</span>
-      <code>{metadata?.resume_command ?? 'Not available'}</code>
+      <code>{specializedPresentation?.resumeUnavailable ?? metadata?.resume_command ?? 'Not available'}</code>
       <div class="resume-actions">
         <button
           type="button"
           class="secondary resume-action-button"
-          disabled={metadata?.resume_command == null}
+          disabled={session?.capabilities.can_resume !== true || metadata?.resume_command == null}
           onclick={onCopyResume}
         >
           Copy Resume Command
@@ -130,7 +146,8 @@
         <button
           type="button"
           class="secondary resume-action-button"
-          disabled={status !== 'loaded' || isExportingWorklog}
+          title={specializedPresentation?.exportUnavailable}
+          disabled={status !== 'loaded' || session?.capabilities.can_export_worklog !== true || isExportingWorklog}
           onclick={onExportWorklog}
         >
           Export Worklog

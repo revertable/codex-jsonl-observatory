@@ -7,7 +7,9 @@ use serde_json::{Value, json};
 
 use crate::{
     domain::{ChatEntryFilter, ParsedChatLog, RenderedEntryKind},
-    parser,
+    inspection::{SessionClassification, SessionIdentity, SessionSourceIdentity, inspect_reader},
+    session,
+    session::locator::SessionLocation,
 };
 
 const SESSION_ID_HEX_GROUPS: [usize; 5] = [8, 4, 4, 4, 12];
@@ -60,7 +62,68 @@ impl From<ChatEntryFilter> for FilterDto {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseResponseDto {
     pub source: LoadedFileMetadataDto,
+    pub session: SessionDescriptorDto,
     pub parsed_chat_log: ParsedChatLogDto,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionDescriptorDto {
+    pub classification: SessionClassificationDto,
+    pub identity: Option<SessionIdentityDto>,
+    pub capabilities: SessionCapabilitiesDto,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SessionClassificationDto {
+    Unclassified,
+    GuardianReview,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionIdentityDto {
+    pub thread_id: Option<String>,
+    pub session_id: Option<String>,
+    pub parent_thread_id: Option<String>,
+    pub originator: Option<String>,
+    pub thread_source: Option<String>,
+    pub source: SessionSourceDto,
+    pub history_mode: Option<String>,
+    pub subagent_history_start_ordinal: Option<u64>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SessionSourceDto {
+    pub kind: &'static str,
+    pub value: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SessionCapabilitiesDto {
+    pub can_show_transcript: bool,
+    pub can_resume: bool,
+    pub can_export_worklog: bool,
+    pub can_open_parent_session: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocateParentSessionRequestDto {
+    pub current_path: String,
+    pub parent_thread_id: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ParentSessionLocationStatusDto {
+    Found,
+    NotFound,
+    Ambiguous,
+    Unavailable,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocateParentSessionResponseDto {
+    pub status: ParentSessionLocationStatusDto,
+    pub path: Option<String>,
+    pub message: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -148,14 +211,49 @@ pub fn parse_for_transport(request: ParseBoundaryRequest) -> ApiResult<ParseResp
 
 pub fn parse_selected_file(request: ParseRequestDto) -> ApiResult<ParseResponseDto> {
     let path = PathBuf::from(&request.path);
-    let source = LoadedFileMetadataDto::from_path(&path).map_err(ErrorResponseDto::from_io)?;
-    let parsed = parser::parse_file(&path).map_err(ErrorResponseDto::from_io)?;
+    let loaded = session::load_file(&path).map_err(ErrorResponseDto::from_io)?;
+    let route_capabilities = loaded.descriptor.capabilities();
+    let mut source = LoadedFileMetadataDto::from_path(&path).map_err(ErrorResponseDto::from_io)?;
+    if !route_capabilities.can_resume {
+        source.resume_command = None;
+    }
+    let session = SessionDescriptorDto::from_domain(
+        &loaded.descriptor,
+        route_capabilities.can_resume && source.resume_command.is_some(),
+    );
+    let parsed = loaded.into_compatible_chat_log();
     let filter = ChatEntryFilter::from(request.filter);
 
     Ok(ParseResponseDto {
         source,
+        session,
         parsed_chat_log: ParsedChatLogDto::from_domain(&parsed, &filter),
     })
+}
+
+pub fn locate_parent_session_for_transport(
+    request: LocateParentSessionRequestDto,
+) -> ApiResult<LocateParentSessionResponseDto> {
+    let current_path = PathBuf::from(&request.current_path);
+    let current_file = fs::File::open(&current_path).map_err(ErrorResponseDto::from_io)?;
+    let inspection = inspect_reader(current_file).map_err(ErrorResponseDto::from_io)?;
+    let observed_parent_thread_id = inspection
+        .identity
+        .as_ref()
+        .and_then(|identity| identity.parent_thread_id.as_deref());
+
+    if inspection.classification != SessionClassification::GuardianReview
+        || observed_parent_thread_id != Some(request.parent_thread_id.trim())
+    {
+        return Err(ErrorResponseDto::new(
+            "parent_session_navigation_unavailable",
+            "The selected file does not expose the requested Guardian parent session.",
+        ));
+    }
+
+    Ok(LocateParentSessionResponseDto::from_domain(
+        session::locator::locate_parent_session(&current_path, &request.parent_thread_id),
+    ))
 }
 
 pub fn project_parsed_chat_log(
@@ -189,8 +287,166 @@ impl ParseResponseDto {
     pub fn to_json(&self) -> Value {
         json!({
             "source": self.source.to_json(),
+            "session": self.session.to_json(),
             "parsed_chat_log": self.parsed_chat_log.to_json(),
         })
+    }
+}
+
+impl SessionDescriptorDto {
+    fn from_domain(descriptor: &session::SessionDescriptor, can_resume: bool) -> Self {
+        let capabilities = descriptor.capabilities();
+        Self {
+            classification: SessionClassificationDto::from(descriptor.classification),
+            identity: descriptor
+                .identity
+                .as_ref()
+                .map(SessionIdentityDto::from_domain),
+            capabilities: SessionCapabilitiesDto {
+                can_show_transcript: capabilities.can_show_transcript,
+                can_resume,
+                can_export_worklog: capabilities.can_export_worklog,
+                can_open_parent_session: capabilities.can_open_parent_session,
+            },
+        }
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "classification": self.classification.as_str(),
+            "identity": self.identity.as_ref().map(SessionIdentityDto::to_json),
+            "capabilities": self.capabilities.to_json(),
+        })
+    }
+}
+
+impl From<SessionClassification> for SessionClassificationDto {
+    fn from(classification: SessionClassification) -> Self {
+        match classification {
+            SessionClassification::Unclassified => Self::Unclassified,
+            SessionClassification::GuardianReview => Self::GuardianReview,
+        }
+    }
+}
+
+impl SessionClassificationDto {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Unclassified => "unclassified",
+            Self::GuardianReview => "guardian_review",
+        }
+    }
+}
+
+impl SessionIdentityDto {
+    fn from_domain(identity: &SessionIdentity) -> Self {
+        Self {
+            thread_id: identity.thread_id.clone(),
+            session_id: identity.session_id.clone(),
+            parent_thread_id: identity.parent_thread_id.clone(),
+            originator: identity.originator.clone(),
+            thread_source: identity.thread_source.clone(),
+            source: SessionSourceDto::from_domain(&identity.source),
+            history_mode: identity.history_mode.clone(),
+            subagent_history_start_ordinal: identity.subagent_history_start_ordinal,
+        }
+    }
+
+    fn to_json(&self) -> Value {
+        json!({
+            "thread_id": self.thread_id,
+            "session_id": self.session_id,
+            "parent_thread_id": self.parent_thread_id,
+            "originator": self.originator,
+            "thread_source": self.thread_source,
+            "source": self.source.to_json(),
+            "history_mode": self.history_mode,
+            "subagent_history_start_ordinal": self.subagent_history_start_ordinal,
+        })
+    }
+}
+
+impl SessionSourceDto {
+    fn from_domain(source: &SessionSourceIdentity) -> Self {
+        match source {
+            SessionSourceIdentity::Named(value) => Self {
+                kind: "named",
+                value: Some(value.clone()),
+            },
+            SessionSourceIdentity::Subagent(value) => Self {
+                kind: "subagent",
+                value: Some(value.clone()),
+            },
+            SessionSourceIdentity::Unknown => Self {
+                kind: "unknown",
+                value: None,
+            },
+        }
+    }
+
+    fn to_json(&self) -> Value {
+        json!({
+            "kind": self.kind,
+            "value": self.value,
+        })
+    }
+}
+
+impl SessionCapabilitiesDto {
+    fn to_json(self) -> Value {
+        json!({
+            "can_show_transcript": self.can_show_transcript,
+            "can_resume": self.can_resume,
+            "can_export_worklog": self.can_export_worklog,
+            "can_open_parent_session": self.can_open_parent_session,
+        })
+    }
+}
+
+impl LocateParentSessionResponseDto {
+    fn from_domain(location: SessionLocation) -> Self {
+        match location {
+            SessionLocation::Found(path) => Self {
+                status: ParentSessionLocationStatusDto::Found,
+                path: Some(path.to_string_lossy().into_owned()),
+                message: "Parent session found locally.".to_owned(),
+            },
+            SessionLocation::NotFound => Self {
+                status: ParentSessionLocationStatusDto::NotFound,
+                path: None,
+                message: "Parent session not found locally.".to_owned(),
+            },
+            SessionLocation::Ambiguous => Self {
+                status: ParentSessionLocationStatusDto::Ambiguous,
+                path: None,
+                message: "A unique parent session could not be identified locally.".to_owned(),
+            },
+            SessionLocation::Unavailable => Self {
+                status: ParentSessionLocationStatusDto::Unavailable,
+                path: None,
+                message: "The local parent session search could not be completed reliably."
+                    .to_owned(),
+            },
+        }
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "status": self.status.as_str(),
+            "path": self.path,
+            "message": self.message,
+        })
+    }
+}
+
+impl ParentSessionLocationStatusDto {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Found => "found",
+            Self::NotFound => "not_found",
+            Self::Ambiguous => "ambiguous",
+            Self::Unavailable => "unavailable",
+        }
     }
 }
 
@@ -348,13 +604,17 @@ impl ObservedEventCountDto {
 }
 
 impl ErrorResponseDto {
-    pub fn from_io(error: io::Error) -> Self {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             error: ApiErrorDto {
-                code: "parse_file_failed".to_owned(),
-                message: error.to_string(),
+                code: code.into(),
+                message: message.into(),
             },
         }
+    }
+
+    pub fn from_io(error: io::Error) -> Self {
+        Self::new("parse_file_failed", error.to_string())
     }
 
     pub fn to_json(&self) -> Value {
@@ -434,6 +694,19 @@ mod tests {
     use super::*;
     use crate::domain::{RenderedEntry, RenderedEntryKind};
     use indexmap::IndexMap;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn api_test_file(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time")
+            .as_nanos();
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("api-tests")
+            .join(format!("{name}-{nonce}"))
+            .join("11111111-2222-3333-4444-555555555555.jsonl")
+    }
 
     fn parsed_log() -> ParsedChatLog {
         let mut observed_event_counts = IndexMap::new();
@@ -468,6 +741,19 @@ mod tests {
             ignored_lines: 3,
             malformed_lines: 1,
             observed_event_counts,
+        }
+    }
+
+    fn ordinary_session(can_resume: bool) -> SessionDescriptorDto {
+        SessionDescriptorDto {
+            classification: SessionClassificationDto::Unclassified,
+            identity: None,
+            capabilities: SessionCapabilitiesDto {
+                can_show_transcript: true,
+                can_resume,
+                can_export_worklog: true,
+                can_open_parent_session: false,
+            },
         }
     }
 
@@ -547,6 +833,7 @@ mod tests {
                     "codex resume 11111111-2222-3333-4444-555555555555".to_owned(),
                 ),
             },
+            session: ordinary_session(true),
             parsed_chat_log: ParsedChatLogDto::from_domain(&parsed_log(), &ChatEntryFilter::all()),
         };
 
@@ -565,6 +852,8 @@ mod tests {
             json["source"]["resume_command"],
             "codex resume 11111111-2222-3333-4444-555555555555"
         );
+        assert_eq!(json["session"]["classification"], "unclassified");
+        assert_eq!(json["session"]["capabilities"]["can_resume"], true);
         assert_eq!(json["parsed_chat_log"]["entries"][0]["kind"], "you");
         assert_eq!(json["parsed_chat_log"]["entries"][0]["label"], "[YOU]");
         assert_eq!(
@@ -639,6 +928,116 @@ mod tests {
 
         assert_eq!(json["error"]["code"], "parse_file_failed");
         assert_eq!(json["error"]["message"], "permission denied");
+    }
+
+    #[test]
+    fn guardian_load_does_not_project_ordinary_transcript_entries() {
+        let path = api_test_file("guardian-routing");
+        fs::create_dir_all(path.parent().expect("test parent")).expect("create test parent");
+        fs::write(
+            &path,
+            concat!(
+                r#"{"type":"session_meta","payload":{"id":"guardian-thread","session_id":"root-session","parent_thread_id":"parent-thread","originator":"codex_work_desktop","thread_source":"guardian_review","source":{"subagent":{"other":"guardian"}},"history_mode":"paginated","subagent_history_start_ordinal":110}}"#,
+                "\n",
+                r#"{"type":"response_item","payload":{"type":"message","role":"user","content":"must not become YOU"}}"#,
+                "\n",
+                r#"{"type":"response_item","payload":{"type":"message","role":"assistant","content":"must not become CODEX"}}"#,
+            ),
+        )
+        .expect("write guardian fixture");
+
+        let response = parse_selected_file(ParseRequestDto {
+            path: path.to_string_lossy().into_owned(),
+            filter: FilterDto::default(),
+        })
+        .expect("guardian load preserves the API contract");
+
+        assert!(response.parsed_chat_log.entries.is_empty());
+        assert!(response.parsed_chat_log.transcript_blocks.is_empty());
+        assert_eq!(response.parsed_chat_log.counters.total_entries, 0);
+        assert_eq!(response.session.classification.as_str(), "guardian_review");
+        let identity = response
+            .session
+            .identity
+            .as_ref()
+            .expect("guardian identity");
+        assert_eq!(identity.thread_id.as_deref(), Some("guardian-thread"));
+        assert_eq!(identity.parent_thread_id.as_deref(), Some("parent-thread"));
+        assert_eq!(identity.session_id.as_deref(), Some("root-session"));
+        assert!(!response.session.capabilities.can_show_transcript);
+        assert!(!response.session.capabilities.can_resume);
+        assert!(!response.session.capabilities.can_export_worklog);
+        assert!(response.session.capabilities.can_open_parent_session);
+        assert_eq!(
+            response.source.session_id.as_deref(),
+            Some("11111111-2222-3333-4444-555555555555")
+        );
+        assert_eq!(response.source.resume_command, None);
+        let json = response.to_json();
+        assert_eq!(json["session"]["classification"], "guardian_review");
+        assert_eq!(json["session"]["identity"]["thread_id"], "guardian-thread");
+        assert_eq!(
+            json["session"]["identity"]["parent_thread_id"],
+            "parent-thread"
+        );
+        assert_eq!(json["session"]["capabilities"]["can_resume"], false);
+        assert_eq!(json["session"]["capabilities"]["can_export_worklog"], false);
+        assert_eq!(
+            json["session"]["capabilities"]["can_open_parent_session"],
+            true
+        );
+
+        fs::remove_dir_all(path.parent().expect("test parent")).expect("remove guardian fixture");
+    }
+
+    #[test]
+    fn parent_locator_finds_verified_parent_outside_child_date_directory() {
+        let root = api_test_file("parent-locator")
+            .parent()
+            .expect("api test root")
+            .join("sessions");
+        let parent_id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+        let child = root
+            .join("2026")
+            .join("09")
+            .join("17")
+            .join("guardian-child.jsonl");
+        let parent = root
+            .join("2026")
+            .join("09")
+            .join("09")
+            .join("parent-without-id-in-name.jsonl");
+        fs::create_dir_all(child.parent().expect("child parent")).expect("create child parent");
+        fs::create_dir_all(parent.parent().expect("parent parent")).expect("create parent parent");
+        fs::write(
+            &child,
+            format!(
+                r#"{{"type":"session_meta","payload":{{"id":"guardian","parent_thread_id":"{parent_id}","thread_source":"guardian_review","source":{{"subagent":{{"other":"guardian"}}}}}}}}"#
+            ),
+        )
+        .expect("write guardian");
+        fs::write(
+            &parent,
+            format!(
+                r#"{{"type":"session_meta","payload":{{"id":"{parent_id}","originator":"codex_cli"}}}}"#
+            ),
+        )
+        .expect("write parent");
+
+        let response = locate_parent_session_for_transport(LocateParentSessionRequestDto {
+            current_path: child.to_string_lossy().into_owned(),
+            parent_thread_id: parent_id.to_owned(),
+        })
+        .expect("locate parent");
+
+        assert_eq!(response.status, ParentSessionLocationStatusDto::Found);
+        let canonical_parent = fs::canonicalize(&parent)
+            .expect("canonical parent")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(response.path.as_deref(), Some(canonical_parent.as_str()));
+
+        fs::remove_dir_all(root.parent().expect("fixture root")).expect("remove fixture");
     }
 
     #[test]
@@ -718,6 +1117,7 @@ mod tests {
                 session_id: None,
                 resume_command: None,
             },
+            session: ordinary_session(false),
             parsed_chat_log: project_parsed_chat_log(&parsed_log(), None),
         };
 

@@ -4,6 +4,7 @@ import type {
   LoadedFileMetadataDto,
   ObservedEventCountDto,
   ParseResponseDto,
+  SessionDescriptorDto,
   TranscriptBlockDto,
 } from './parse-contract'
 
@@ -15,6 +16,7 @@ export interface SelectedFileState {
 
 export interface LoadedFileState {
   metadata: LoadedFileMetadataDto | null
+  session: SessionDescriptorDto | null
   observed_event_counts: ObservedEventCountDto[]
 }
 
@@ -48,6 +50,7 @@ export function createInitialLoadWorkflowState(): LoadWorkflowState {
     },
     loaded_file: {
       metadata: null,
+      session: null,
       observed_event_counts: [],
     },
     all_observations: emptyObservations(),
@@ -89,6 +92,7 @@ export function applyParseResponse(
     status: 'loaded',
     loaded_file: {
       metadata: response.source,
+      session: response.session,
       observed_event_counts: response.parsed_chat_log.observed_event_counts,
     },
     all_observations: allObservations,
@@ -156,6 +160,7 @@ function clearLoadedResult(state: LoadWorkflowState): LoadWorkflowState {
     ...state,
     loaded_file: {
       metadata: null,
+      session: null,
       observed_event_counts: [],
     },
     all_observations: emptyObservations(),

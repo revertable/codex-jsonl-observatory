@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { ApiErrorDto, ErrorResponseDto, FilterDto, ParseResponseDto } from './parse-contract'
+import type { LocateParentSessionResponse } from './parent-session-contract'
 import type { ExportWorklogResponse } from './worklog-contract'
 
 let lastSelectedDirectory: string | null = null
@@ -36,6 +37,20 @@ export async function parseSelectedJsonl(
 ): Promise<ParseResponseDto> {
   try {
     return await invoke<ParseResponseDto>('parse_selected_jsonl', { path, filter })
+  } catch (error) {
+    throw normalizeApiError(error)
+  }
+}
+
+export async function locateParentSession(
+  currentPath: string,
+  parentThreadId: string,
+): Promise<LocateParentSessionResponse> {
+  try {
+    return await invoke<LocateParentSessionResponse>('locate_parent_session', {
+      currentPath,
+      parentThreadId,
+    })
   } catch (error) {
     throw normalizeApiError(error)
   }

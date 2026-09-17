@@ -13,7 +13,7 @@ use time::{
 use crate::{
     api::LoadedFileMetadataDto,
     domain::{ParsedChatLog, RenderedEntry, RenderedEntryKind},
-    parser,
+    session,
 };
 
 const GENERATOR: &str = "codex-jsonl-observatory";
@@ -123,8 +123,15 @@ fn export_worklog_at(
 
     let source = LoadedFileMetadataDto::from_path(&request.source_path)
         .map_err(|error| ExportWorklogError::io("Could not resolve source metadata", error))?;
-    let parsed = parser::parse_file(&request.source_path)
-        .map_err(|error| ExportWorklogError::io("Could not parse the source JSONL", error))?;
+    let loaded = session::load_file(&request.source_path)
+        .map_err(|error| ExportWorklogError::io("Could not load the source JSONL", error))?;
+    if !loaded.descriptor.capabilities().can_export_worklog {
+        return Err(ExportWorklogError {
+            code: "worklog_export_unavailable",
+            message: "Worklog export is not available for this session type.".to_owned(),
+        });
+    }
+    let parsed = loaded.into_compatible_chat_log();
     let (prelude, units) = group_work_units(&parsed);
     let source_key = source_key(&source);
     let source_id = source_folder_id(&source, &source_key);
@@ -817,6 +824,39 @@ mod tests {
             fs::read_to_string(target.join("user-note.md")).expect("note remains"),
             "untouched"
         );
+
+        fs::remove_dir_all(&root).expect("remove test root");
+    }
+
+    #[test]
+    fn guardian_export_is_rejected_before_writing_a_bundle() {
+        let root = test_root("guardian-routing");
+        fs::create_dir_all(&root).expect("create test root");
+        let source = root.join("11111111-2222-3333-4444-555555555555.jsonl");
+        fs::write(
+            &source,
+            concat!(
+                r#"{"type":"session_meta","payload":{"thread_source":"guardian_review","source":{"subagent":{"other":"guardian"}}}}"#,
+                "\n",
+                r#"{"type":"response_item","payload":{"type":"message","role":"user","content":"guardian user sentinel"}}"#,
+                "\n",
+                r#"{"type":"response_item","payload":{"type":"message","role":"assistant","content":"guardian assistant sentinel"}}"#,
+            ),
+        )
+        .expect("write guardian fixture");
+
+        let error = export_worklog_at(
+            ExportWorklogRequest {
+                source_path: source,
+                parent_directory: root.clone(),
+            },
+            OffsetDateTime::parse("2026-06-22T10:00:00Z", &Rfc3339).expect("time"),
+            utc_offset,
+        )
+        .expect_err("guardian export is unavailable");
+
+        assert_eq!(error.code, "worklog_export_unavailable");
+        assert!(!root.join("codex-worklog").exists());
 
         fs::remove_dir_all(&root).expect("remove test root");
     }
