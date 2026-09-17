@@ -102,7 +102,6 @@
       {/each}
 
       <div class="terminal-blank" aria-hidden="true"></div>
-      <div class="terminal-blank" aria-hidden="true"></div>
     {/if}
 
     <div class="terminal-separator">{separator}</div>

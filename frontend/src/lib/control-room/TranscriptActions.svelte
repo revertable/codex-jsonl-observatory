@@ -7,6 +7,7 @@
     canCaptureTranscript: boolean
     actionStatusMessage: string
     onCapture: () => void | Promise<void>
+    onTop: () => void
     onRefresh: () => void | Promise<void>
   }
 
@@ -16,6 +17,7 @@
     canCaptureTranscript,
     actionStatusMessage,
     onCapture,
+    onTop,
     onRefresh,
   }: Props = $props()
 </script>
@@ -27,7 +29,7 @@
   <div class="transcript-actions">
     <button
       type="button"
-      class="refresh-button"
+      class="compact-action-button"
       disabled={status !== 'loaded' || !canCaptureTranscript}
       onclick={onCapture}
     >
@@ -35,7 +37,15 @@
     </button>
     <button
       type="button"
-      class="refresh-button"
+      class="compact-action-button"
+      disabled={status !== 'loaded'}
+      onclick={onTop}
+    >
+      Top
+    </button>
+    <button
+      type="button"
+      class="compact-action-button"
       disabled={!hasSelectedPath}
       onclick={() => onRefresh()}
     >

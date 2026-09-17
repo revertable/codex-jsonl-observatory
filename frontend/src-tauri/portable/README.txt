@@ -1,4 +1,4 @@
-Codex JSONL Observatory 1.1.0 - Portable Windows Build
+Codex JSONL Observatory 1.1.1 - Portable Windows Build
 ======================================================
 
 English

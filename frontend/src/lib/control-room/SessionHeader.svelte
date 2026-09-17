@@ -20,7 +20,6 @@
     actionStatusMessage: string
     errorMessage: string | null
     onChooseJsonl: () => void | Promise<void>
-    onPathChange: (path: string) => void
     onRefresh: () => void | Promise<void>
     onReset: () => void
     onCopyResume: () => void | Promise<void>
@@ -41,7 +40,6 @@
     actionStatusMessage,
     errorMessage,
     onChooseJsonl,
-    onPathChange,
     onRefresh,
     onReset,
     onCopyResume,
@@ -50,12 +48,22 @@
     onThemeChange,
   }: Props = $props()
 
-  const filterOptions = [
-    ['show_you', 'You'],
-    ['show_codex', 'Codex'],
-    ['show_tool_call', 'Tool calls'],
-    ['show_tool_result', 'Tool results'],
-    ['show_meta', 'Meta'],
+  const filterGroups = [
+    {
+      layer: 'core',
+      options: [
+        ['show_you', 'You'],
+        ['show_codex', 'Codex'],
+      ],
+    },
+    {
+      layer: 'observation',
+      options: [
+        ['show_tool_call', 'Tool calls'],
+        ['show_tool_result', 'Tool results'],
+        ['show_meta', 'Meta'],
+      ],
+    },
   ] as const
 
   const specialized = $derived(isSpecializedSession(session))
@@ -74,19 +82,19 @@
     <div class="toolbar-actions">
       <button type="button" onclick={onChooseJsonl}>Select JSONL</button>
 
-      <label class="manual-path-field">
-        <span>Manual path (use Refresh to load)</span>
+      <label class="selected-path-field">
+        <span>Selected JSONL path</span>
         <input
           type="text"
           value={selectedPath}
-          placeholder="Paste a local JSONL path"
-          oninput={(event) => onPathChange(event.currentTarget.value)}
+          placeholder="No JSONL selected"
+          readonly
         />
       </label>
 
       <button
         type="button"
-        class="refresh-button"
+        class="compact-action-button"
         disabled={selectedPath.trim() === ''}
         onclick={() => onRefresh()}
       >
@@ -160,15 +168,19 @@
   <section class="filter-bar" aria-label="Transcript filters">
     <h2>Filters</h2>
     <div class="filter-list">
-      {#each filterOptions as [key, label]}
-        <label>
-          <input
-            type="checkbox"
-            checked={filter[key]}
-            onchange={(event) => onFilterChange(key, event.currentTarget.checked)}
-          />
-          <span>{label}</span>
-        </label>
+      {#each filterGroups as group}
+        <div class="filter-group" data-filter-layer={group.layer}>
+          {#each group.options as [key, label]}
+            <label>
+              <input
+                type="checkbox"
+                checked={filter[key]}
+                onchange={(event) => onFilterChange(key, event.currentTarget.checked)}
+              />
+              <span>{label}</span>
+            </label>
+          {/each}
+        </div>
       {/each}
     </div>
     <label class="theme-selector">

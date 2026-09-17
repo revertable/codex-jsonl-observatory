@@ -3,8 +3,8 @@
     applyParseResponse,
     beginLoad,
     createInitialLoadWorkflowState,
-    defaultFilterState,
     failLoad,
+    loadAllObservations,
     selectPath,
     updateFilter,
     type LoadWorkflowState,
@@ -38,13 +38,6 @@
   let transcriptElement: HTMLElement | null = null
   let selectedTheme: TranscriptThemeName = 'Terminal Style'
 
-  function handlePathChange(path: string) {
-    workflow = selectPath(workflow, path)
-    actionStatusMessage = ''
-    transcriptActionStatusMessage = ''
-    parentSessionStatusMessage = ''
-  }
-
   async function chooseJsonlPath() {
     const selectedPath = await selectJsonlPath()
 
@@ -69,7 +62,7 @@
     parentSessionStatusMessage = ''
 
     try {
-      const response = await parseSelectedJsonl(path, defaultFilterState)
+      const response = await loadAllObservations(path, parseSelectedJsonl)
       workflow = applyParseResponse(workflow, response)
       actionStatusMessage = ''
     } catch (error) {
@@ -166,6 +159,34 @@
     } catch {
       transcriptActionStatusMessage = 'Capture failed.'
     }
+  }
+
+  function scrollPageToTop() {
+    const startY = window.scrollY
+
+    if (startY === 0) {
+      return
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      window.scrollTo(0, 0)
+      return
+    }
+
+    const duration = 200
+    const startedAt = performance.now()
+
+    function step(now: number) {
+      const progress = Math.min((now - startedAt) / duration, 1)
+      const easedProgress = 1 - Math.pow(1 - progress, 3)
+      window.scrollTo(0, startY * (1 - easedProgress))
+
+      if (progress < 1) {
+        requestAnimationFrame(step)
+      }
+    }
+
+    requestAnimationFrame(step)
   }
 
   async function handleExportWorklog() {
@@ -298,7 +319,6 @@
     {actionStatusMessage}
     errorMessage={workflow.error?.message ?? null}
     onChooseJsonl={chooseJsonlPath}
-    onPathChange={handlePathChange}
     onRefresh={loadSelectedJsonl}
     onReset={resetToIdle}
     onCopyResume={copyResumeCommand}
@@ -357,6 +377,7 @@
     canCaptureTranscript={workflow.loaded_file.session?.capabilities.can_show_transcript === true}
     actionStatusMessage={transcriptActionStatusMessage}
     onCapture={captureTranscript}
+    onTop={scrollPageToTop}
     onRefresh={loadSelectedJsonl}
   />
 </main>

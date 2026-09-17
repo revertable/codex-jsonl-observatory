@@ -10,7 +10,7 @@ Use it for transcript reading, capturing a filtered transcript as text, or turni
 
 Codex JSONL Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
 
-`v1.1.0` is the current public Windows portable release. It adds specialized-session handling and clearer separation between human-authored requests and runtime-injected context.
+`v1.1.1` is the current public Windows portable release. It sharpens transcript focus with conversation-first default filters, adds a quick return to the top, and removes redundant terminal spacing.
 
 Just download the Windows portable zip, unzip it, and run the app. No server setup, cloud account, or developer environment is required.
 
@@ -83,7 +83,7 @@ build-and-run.bat
 The script builds the release application without generating an installer, creates the following portable archive, and then starts the application:
 
 ```text
-release\Codex-JSONL-Observatory_1.1.0_windows-x64-portable.zip
+release\Codex-JSONL-Observatory_1.1.1_windows-x64-portable.zip
 ```
 
 The archive contains `codex-jsonl-observatory.exe`, `LICENSE`, and a bilingual `README.txt`. The built application is started from:

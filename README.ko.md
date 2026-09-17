@@ -10,7 +10,7 @@ Codex JSONL Observatory는 Codex 세션 JSONL 파일을 읽고 버전 관리가 
 
 Codex JSONL Observatory는 이 제품 계보의 이전 도구인 [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer)를 잇는 2세대 앱입니다. Codex 세션 JSONL 파일을 읽는다는 동일한 목적을 유지하면서, 전체 작업 흐름을 Rust/Svelte/Tauri 기반의 로컬 데스크톱 앱으로 다시 구축했습니다.
 
-`v1.1.0`은 현재 공개된 Windows 포터블 릴리스입니다. 이번 버전에는 specialized session 처리와 사람이 작성한 요청·runtime 주입 context를 더 명확하게 구분하는 기능이 추가되었습니다.
+`v1.1.1`은 현재 공개된 Windows 포터블 릴리스입니다. 핵심 대화 중심의 기본 필터, 대화 상단으로 빠르게 이동하는 기능, 불필요한 Terminal 여백 제거로 transcript 탐색을 다듬었습니다.
 
 Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩니다. 별도의 서버 설정, 클라우드 계정, 개발 환경은 필요하지 않습니다.
 
@@ -83,7 +83,7 @@ build-and-run.bat
 이 스크립트는 설치 프로그램을 만들지 않고 release 애플리케이션을 빌드하고 다음 포터블 압축 파일을 생성한 뒤 앱을 시작합니다.
 
 ```text
-release\Codex-JSONL-Observatory_1.1.0_windows-x64-portable.zip
+release\Codex-JSONL-Observatory_1.1.1_windows-x64-portable.zip
 ```
 
 압축 파일에는 `codex-jsonl-observatory.exe`, `LICENSE`, 영문·한국어가 함께 수록된 `README.txt`가 포함됩니다. 빌드된 앱은 다음 경로에서 시작됩니다.

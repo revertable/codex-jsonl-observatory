@@ -136,7 +136,7 @@ code {
   min-width: 0;
 }
 
-.manual-path-field {
+.selected-path-field {
   display: grid;
   gap: 2px;
   min-width: 0;
@@ -145,7 +145,7 @@ code {
   font-weight: 650;
 }
 
-.manual-path-field input {
+.selected-path-field input {
   width: 100%;
   min-width: 0;
   border: 1px solid var(--border);
@@ -182,7 +182,7 @@ code {
   padding-block: 4px;
 }
 
-.refresh-button {
+.compact-action-button {
   min-height: 30px;
   padding: 4px 10px;
   font-size: 13px;
@@ -337,11 +337,18 @@ code {
   text-transform: uppercase;
 }
 
-.filter-list {
+.filter-list,
+.filter-group {
   display: flex;
   gap: 10px 20px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.filter-group[data-filter-layer='core'] {
+  border-radius: 5px;
+  padding: 3px 8px;
+  background: var(--accent-weak);
 }
 
 .filter-list label {
@@ -350,6 +357,14 @@ code {
   align-items: center;
   color: var(--text);
   font-size: 13px;
+}
+
+.filter-group[data-filter-layer='core'] label {
+  color: var(--accent);
+}
+
+.filter-group[data-filter-layer='observation'] label {
+  color: var(--muted);
 }
 
 .filter-list input {
@@ -521,7 +536,7 @@ dd {
   align-items: center;
 }
 
-.transcript-actions .refresh-button {
+.transcript-actions .compact-action-button {
   white-space: nowrap;
 }
 
@@ -612,7 +627,7 @@ dd {
     grid-template-columns: 1fr 1fr;
   }
 
-  .manual-path-field {
+  .selected-path-field {
     grid-column: 1 / -1;
   }
 

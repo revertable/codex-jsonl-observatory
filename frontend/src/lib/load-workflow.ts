@@ -39,9 +39,26 @@ export interface LoadWorkflowState {
 export const defaultFilterState: FilterDto = {
   show_you: true,
   show_codex: true,
+  show_tool_call: false,
+  show_tool_result: false,
+  show_meta: false,
+}
+
+export const sourceLoadFilterState: FilterDto = {
+  show_you: true,
+  show_codex: true,
   show_tool_call: true,
   show_tool_result: true,
   show_meta: true,
+}
+
+type ParseJsonl = (path: string, filter: FilterDto) => Promise<ParseResponseDto>
+
+export function loadAllObservations(
+  path: string,
+  parseJsonl: ParseJsonl,
+): Promise<ParseResponseDto> {
+  return parseJsonl(path, { ...sourceLoadFilterState })
 }
 
 export function createInitialLoadWorkflowState(): LoadWorkflowState {

@@ -43,7 +43,7 @@
     {#if presentation.parentActionLabel !== null}
       <button
         type="button"
-        class="refresh-button specialized-session-action"
+        class="compact-action-button specialized-session-action"
         disabled={!canOpenParent || isLocatingParent}
         onclick={onOpenParent}
       >
