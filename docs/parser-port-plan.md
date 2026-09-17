@@ -1,5 +1,9 @@
 # Parser Port Plan
 
+> **Status: historical reference.** This document records the completed Kotlin/Swing-to-Rust parser port plan and the source observations that grounded it. It is not the current parser contract, an active milestone, or a list of unfinished work. Current behavior is defined by the Rust implementation under `backend/src/parser/`, `backend/src/inspection/`, `backend/src/session/`, and their tests.
+
+Later product work intentionally extended the original parity scope with session classification/routing, Guardian specialized-session handling, parent-session lookup, and conservative user transport/context decoding. Statements below such as “proposed,” “to port,” “first milestone,” and “future implementation” describe the migration stage when this record was written.
+
 This plan is grounded in the existing Kotlin/Swing `codex-chat-viewer` parser and is documentation only. The reference repository remains read-only.
 
 ## 1. Existing Kotlin Parser Entry Points

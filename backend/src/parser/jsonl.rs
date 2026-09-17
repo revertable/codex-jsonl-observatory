@@ -5,7 +5,11 @@ use std::path::Path;
 use indexmap::IndexMap;
 use serde_json::Value;
 
-use crate::domain::{ParsedChatLog, RenderedEntry, RenderedEntryKind};
+use crate::domain::{
+    ParsedChatLog, ReferencedConversation, RenderedEntry, RenderedEntryKind, SessionProvenance,
+};
+
+use super::user_transport::{DecodedUserTransport, decode_user_transport};
 
 #[derive(Clone, Debug)]
 struct ParsedCandidate {
@@ -45,6 +49,7 @@ struct CandidateSeed {
     source: CandidateSource,
     stable_id: Option<String>,
     timestamp: Option<String>,
+    is_user_message: bool,
 }
 
 pub fn parse_str(input: &str) -> ParsedChatLog {
@@ -68,6 +73,8 @@ pub fn parse_file(path: impl AsRef<Path>) -> io::Result<ParsedChatLog> {
 
 fn parse_lossy_lines(input: &str) -> ParsedChatLog {
     let mut candidates = Vec::new();
+    let mut session_provenance = SessionProvenance::default();
+    let mut parsed_candidates = 0;
     let mut ignored_lines = 0;
     let mut malformed_lines = 0;
     let mut observed_event_counts = IndexMap::new();
@@ -93,15 +100,20 @@ fn parse_lossy_lines(input: &str) -> ParsedChatLog {
         if extracted.is_empty() {
             ignored_lines += 1;
         } else {
-            candidates.extend(extracted.into_iter().map(|seed| {
-                let candidate = parsed_candidate(seed, next_candidate_index);
+            parsed_candidates += extracted.len();
+            for seed in extracted {
+                let (candidate, reference) = parsed_candidate(seed, next_candidate_index);
                 next_candidate_index += 1;
-                candidate
-            }));
+                if let Some(reference) = reference {
+                    session_provenance.observe_reference(reference);
+                }
+                if let Some(candidate) = candidate {
+                    candidates.push(candidate);
+                }
+            }
         }
     }
 
-    let parsed_candidates = candidates.len();
     let candidates = dedupe_candidates(candidates);
     let entry_timestamps = candidates
         .iter()
@@ -116,6 +128,7 @@ fn parse_lossy_lines(input: &str) -> ParsedChatLog {
         parsed_candidates,
         entries,
         entry_timestamps,
+        session_provenance,
         ignored_lines,
         malformed_lines,
         observed_event_counts,
@@ -138,17 +151,37 @@ fn increment_observed_event_count(counts: &mut IndexMap<String, usize>, value: &
     *counts.entry(key).or_insert(0) += 1;
 }
 
-fn parsed_candidate(seed: CandidateSeed, original_index: usize) -> ParsedCandidate {
-    ParsedCandidate {
-        normalized_text: normalize_text(&seed.entry.content),
+fn parsed_candidate(
+    seed: CandidateSeed,
+    original_index: usize,
+) -> (Option<ParsedCandidate>, Option<ReferencedConversation>) {
+    let (entry, reference) = if seed.is_user_message {
+        match decode_user_transport(&seed.entry.content) {
+            Some(DecodedUserTransport::HumanRequest { request, reference }) => {
+                (Some(classify_user_message(&request)), reference)
+            }
+            Some(DecodedUserTransport::DelegatedHandoff { reference }) => (None, Some(reference)),
+            None => (Some(seed.entry), None),
+        }
+    } else {
+        (Some(seed.entry), None)
+    };
+    let Some(entry) = entry else {
+        return (None, reference);
+    };
+    let normalized_text = normalize_text(&entry.content);
+
+    let candidate = ParsedCandidate {
+        normalized_text,
         stable_key: seed
             .stable_id
-            .map(|stable_id| format!("{}:{stable_id}", rendered_kind_key(seed.entry.kind))),
-        entry: seed.entry,
+            .map(|stable_id| format!("{}:{stable_id}", rendered_kind_key(entry.kind))),
+        entry,
         source: seed.source,
         timestamp: seed.timestamp,
         original_index,
-    }
+    };
+    (Some(candidate), reference)
 }
 
 fn extract_candidate_seeds(value: &Value) -> Vec<CandidateSeed> {
@@ -168,6 +201,7 @@ fn extract_focused_seed(value: &Value) -> Option<Option<CandidateSeed>> {
             source: CandidateSource::EventSystem,
             stable_id: stable_id(payload),
             timestamp: timestamp(value).or_else(|| timestamp(payload)),
+            is_user_message: false,
         }));
     }
 
@@ -226,6 +260,13 @@ fn extract_focused_seed(value: &Value) -> Option<Option<CandidateSeed>> {
     };
 
     Some(entry.map(|entry| CandidateSeed {
+        is_user_message: matches!(
+            (top_type, payload_type),
+            ("event_msg", Some("user_message"))
+        ) || matches!(
+            (top_type, payload_type, string_field(payload, "role")),
+            ("response_item", Some("message"), Some("user"))
+        ),
         entry,
         source,
         stable_id: focused_stable_id(payload_type, payload),
@@ -257,11 +298,18 @@ fn extract_fallback_seed(value: &Value) -> Option<CandidateSeed> {
     extract_role_based_entry(value)
         .or_else(|| extract_type_based_entry(value))
         .map(|entry| CandidateSeed {
+            is_user_message: is_fallback_user_message(value),
             entry,
             source: CandidateSource::Fallback,
             stable_id: stable_id(value),
             timestamp: timestamp(value),
         })
+}
+
+fn is_fallback_user_message(value: &Value) -> bool {
+    string_field(value, "role") == Some("user")
+        || string_field(value, "type")
+            .is_some_and(|type_name| type_name.to_ascii_lowercase().contains("user"))
 }
 
 fn extract_role_based_entry(value: &Value) -> Option<RenderedEntry> {
@@ -1947,5 +1995,58 @@ mod tests {
 
         assert_eq!(parsed.malformed_lines, 0);
         assert_eq!(parsed.entries[0].content, "\u{fffd}");
+    }
+
+    #[test]
+    fn delegated_handoff_is_observed_without_rendering_a_you_entry() {
+        let handoff = concat!(
+            "## Referenced ChatGPT conversation:\n",
+            "Transport guidance.\n",
+            r#"{"conversationId":"conversation-1","title":"Design discussion","priorConversation":{"conversation":[{"role":"user","content":[{"content_type":"text","text":"Earlier request"}]},{"role":"assistant","content":null},{"role":"assistant","content":[{"content_type":"text","text":"Earlier response"}]}]}}"#,
+            "\n## My request:\n",
+            "Continuing from [Design discussion](chatgpt-conversation://conversation-1): continue."
+        );
+        let parsed = parse_str(&response_user_message_line(handoff));
+
+        assert_eq!(parsed.parsed_candidates, 1);
+        assert!(parsed.entries.is_empty());
+        let references = &parsed.session_provenance.referenced_conversations;
+        assert_eq!(references.len(), 1);
+        assert_eq!(
+            references[0].conversation_id.as_deref(),
+            Some("conversation-1")
+        );
+        assert_eq!(references[0].title.as_deref(), Some("Design discussion"));
+        assert!(references[0].preview_available);
+    }
+
+    #[test]
+    fn ambient_context_projects_one_human_request_entry() {
+        let ambient = concat!(
+            "<in-app-browser-context source=\"ambient-ui-state\">\n",
+            "runtime URL and local path\n",
+            "</in-app-browser-context>\n\n",
+            "## My request:\n",
+            "이어서 작업해줘"
+        );
+        let parsed = parse_str(&response_user_message_line(ambient));
+
+        assert_eq!(parsed.parsed_candidates, 1);
+        assert_eq!(parsed.entries.len(), 1);
+        assert_eq!(parsed.entries[0].kind, RenderedEntryKind::You);
+        assert_eq!(parsed.entries[0].content, "이어서 작업해줘");
+    }
+
+    #[test]
+    fn ordinary_user_message_has_no_session_provenance() {
+        let parsed = parse_str(&response_user_message_line("Ordinary request"));
+
+        assert_eq!(parsed.entries[0].content, "Ordinary request");
+        assert!(
+            parsed
+                .session_provenance
+                .referenced_conversations
+                .is_empty()
+        );
     }
 }

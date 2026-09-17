@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use backend::api::{self, ParseBoundaryRequest};
+use backend::api::{self, LocateParentSessionRequestDto, ParseBoundaryRequest};
 use backend::export::{self, ExportWorklogRequest, ExportWorklogResult};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -31,6 +31,16 @@ fn parse_selected_jsonl(path: String, filter: TauriFilterDto) -> Result<Value, V
     api::parse_for_transport(ParseBoundaryRequest {
         path,
         filter: Some(filter.into()),
+    })
+    .map(|response| response.to_json())
+    .map_err(|error| error.to_json())
+}
+
+#[tauri::command]
+fn locate_parent_session(parent_thread_id: String, current_path: String) -> Result<Value, Value> {
+    api::locate_parent_session_for_transport(LocateParentSessionRequestDto {
+        current_path,
+        parent_thread_id,
     })
     .map(|response| response.to_json())
     .map_err(|error| error.to_json())
@@ -111,6 +121,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             export_worklog,
+            locate_parent_session,
             parse_selected_jsonl,
             resolve_jsonl_initial_directory
         ])

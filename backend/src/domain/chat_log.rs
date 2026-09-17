@@ -1,11 +1,14 @@
 use indexmap::IndexMap;
 
-use super::{ChatEntryFilter, RenderedEntry, RenderedEntryKind, TranscriptBlock};
+use super::{
+    ChatEntryFilter, RenderedEntry, RenderedEntryKind, SessionProvenance, TranscriptBlock,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParsedChatLog {
     pub entries: Vec<RenderedEntry>,
     pub entry_timestamps: Vec<Option<String>>,
+    pub session_provenance: SessionProvenance,
     pub parsed_candidates: usize,
     pub ignored_lines: usize,
     pub malformed_lines: usize,
@@ -17,6 +20,7 @@ impl ParsedChatLog {
         Self {
             entries: Vec::new(),
             entry_timestamps: Vec::new(),
+            session_provenance: SessionProvenance::default(),
             parsed_candidates: 0,
             ignored_lines: 0,
             malformed_lines: 0,
@@ -39,6 +43,7 @@ impl ParsedChatLog {
                 .filter(|(entry, _)| filter_allows_kind(filter, entry.kind))
                 .map(|(_, timestamp)| timestamp.clone())
                 .collect(),
+            session_provenance: self.session_provenance.clone(),
             parsed_candidates: self.parsed_candidates,
             ignored_lines: self.ignored_lines,
             malformed_lines: self.malformed_lines,
@@ -75,6 +80,7 @@ fn filter_allows_kind(filter: &ChatEntryFilter, kind: RenderedEntryKind) -> bool
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::ReferencedConversation;
 
     fn sample_log() -> ParsedChatLog {
         let mut observed_event_counts = IndexMap::new();
@@ -92,6 +98,7 @@ mod tests {
                 entry(RenderedEntryKind::System, "system"),
             ],
             entry_timestamps: vec![None; 7],
+            session_provenance: SessionProvenance::default(),
             parsed_candidates: 9,
             ignored_lines: 3,
             malformed_lines: 2,
@@ -222,6 +229,7 @@ mod tests {
                 entry(RenderedEntryKind::Codex, "hi"),
             ],
             entry_timestamps: vec![None; 2],
+            session_provenance: SessionProvenance::default(),
             parsed_candidates: 2,
             ignored_lines: 0,
             malformed_lines: 0,
@@ -244,6 +252,42 @@ mod tests {
                     content: "hi".to_owned(),
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn filtering_preserves_session_provenance_independently_from_entries() {
+        let reference = ReferencedConversation {
+            conversation_id: Some("conversation-1".to_owned()),
+            title: Some("Reference".to_owned()),
+            preview_available: true,
+        };
+        let parsed = ParsedChatLog {
+            entries: vec![
+                entry(RenderedEntryKind::Codex, "before"),
+                entry(RenderedEntryKind::You, "continue"),
+            ],
+            entry_timestamps: vec![None; 2],
+            session_provenance: SessionProvenance {
+                referenced_conversations: vec![reference.clone()],
+            },
+            parsed_candidates: 2,
+            ignored_lines: 0,
+            malformed_lines: 0,
+            observed_event_counts: IndexMap::new(),
+        };
+
+        let filtered = parsed.filtered(&ChatEntryFilter {
+            show_codex: false,
+            ..ChatEntryFilter::all()
+        });
+        let blocks = filtered.transcript_blocks();
+
+        assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].content, "continue");
+        assert_eq!(
+            filtered.session_provenance.referenced_conversations,
+            vec![reference]
         );
     }
 }

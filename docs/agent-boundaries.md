@@ -34,8 +34,8 @@ Stop before execution if the task would:
 * modify files outside the current repository
 * modify the original Kotlin/Swing repository unless it is explicitly selected as the current work target
 * use real private Codex logs as committed sample data
-* expose secrets, local paths, private prompts, private logs, or machine-specific data
-* introduce Tauri without approval
+* expose secrets, local paths, private prompts, private logs, or other machine-specific data beyond the user-approved local workflow or intended destination
+* materially change the established Tauri desktop boundary, capabilities, plugins, or packaging without declaration and approval
 * introduce database storage without approval
 * introduce external services without approval
 * introduce authentication without approval

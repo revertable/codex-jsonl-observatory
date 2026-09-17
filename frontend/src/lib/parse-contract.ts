@@ -22,7 +22,37 @@ export interface FilterDto {
 
 export interface ParseResponseDto {
   source: LoadedFileMetadataDto
+  session: SessionDescriptorDto
   parsed_chat_log: ParsedChatLogDto
+}
+
+export interface SessionDescriptorDto {
+  classification: string
+  identity: SessionIdentityDto | null
+  capabilities: SessionCapabilitiesDto
+}
+
+export interface SessionIdentityDto {
+  thread_id: string | null
+  session_id: string | null
+  parent_thread_id: string | null
+  originator: string | null
+  thread_source: string | null
+  source: SessionSourceDto
+  history_mode: string | null
+  subagent_history_start_ordinal: number | null
+}
+
+export interface SessionSourceDto {
+  kind: string
+  value: string | null
+}
+
+export interface SessionCapabilitiesDto {
+  can_show_transcript: boolean
+  can_resume: boolean
+  can_export_worklog: boolean
+  can_open_parent_session: boolean
 }
 
 export interface LoadedFileMetadataDto {
@@ -35,6 +65,7 @@ export interface LoadedFileMetadataDto {
 export interface ParsedChatLogDto {
   entries: RenderedEntryDto[]
   transcript_blocks: TranscriptBlockDto[]
+  referenced_conversations: ReferencedConversationDto[]
   counters: ParseCountersDto
   observed_event_counts: ObservedEventCountDto[]
 }
@@ -50,6 +81,12 @@ export interface TranscriptBlockDto {
   label: string
   title: string
   content: string
+}
+
+export interface ReferencedConversationDto {
+  conversation_id: string | null
+  title: string | null
+  preview_available: boolean
 }
 
 export interface ParseCountersDto {

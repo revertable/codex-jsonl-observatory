@@ -4,6 +4,8 @@ import type {
   LoadedFileMetadataDto,
   ObservedEventCountDto,
   ParseResponseDto,
+  ReferencedConversationDto,
+  SessionDescriptorDto,
   TranscriptBlockDto,
 } from './parse-contract'
 
@@ -15,11 +17,13 @@ export interface SelectedFileState {
 
 export interface LoadedFileState {
   metadata: LoadedFileMetadataDto | null
+  session: SessionDescriptorDto | null
   observed_event_counts: ObservedEventCountDto[]
 }
 
 export interface ParsedObservationState {
   transcript_blocks: TranscriptBlockDto[]
+  referenced_conversations: ReferencedConversationDto[]
 }
 
 export interface LoadWorkflowState {
@@ -48,6 +52,7 @@ export function createInitialLoadWorkflowState(): LoadWorkflowState {
     },
     loaded_file: {
       metadata: null,
+      session: null,
       observed_event_counts: [],
     },
     all_observations: emptyObservations(),
@@ -81,6 +86,7 @@ export function applyParseResponse(
 ): LoadWorkflowState {
   const allObservations = {
     transcript_blocks: response.parsed_chat_log.transcript_blocks,
+    referenced_conversations: response.parsed_chat_log.referenced_conversations,
   }
   const observations = projectObservations(allObservations, state.filter)
 
@@ -89,6 +95,7 @@ export function applyParseResponse(
     status: 'loaded',
     loaded_file: {
       metadata: response.source,
+      session: response.session,
       observed_event_counts: response.parsed_chat_log.observed_event_counts,
     },
     all_observations: allObservations,
@@ -131,6 +138,7 @@ function projectObservations(
     transcript_blocks: observations.transcript_blocks.filter((block) =>
       filterAllowsKind(block.entry_type, filter),
     ),
+    referenced_conversations: observations.referenced_conversations,
   }
 }
 
@@ -156,6 +164,7 @@ function clearLoadedResult(state: LoadWorkflowState): LoadWorkflowState {
     ...state,
     loaded_file: {
       metadata: null,
+      session: null,
       observed_event_counts: [],
     },
     all_observations: emptyObservations(),
@@ -167,5 +176,6 @@ function clearLoadedResult(state: LoadWorkflowState): LoadWorkflowState {
 function emptyObservations(): ParsedObservationState {
   return {
     transcript_blocks: [],
+    referenced_conversations: [],
   }
 }

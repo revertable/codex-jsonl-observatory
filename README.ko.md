@@ -10,7 +10,7 @@ Codex JSONL Observatory는 Codex 세션 JSONL 파일을 읽고 버전 관리가 
 
 Codex JSONL Observatory는 이 제품 계보의 이전 도구인 [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer)를 잇는 2세대 앱입니다. Codex 세션 JSONL 파일을 읽는다는 동일한 목적을 유지하면서, 전체 작업 흐름을 Rust/Svelte/Tauri 기반의 로컬 데스크톱 앱으로 다시 구축했습니다.
 
-`v1.0.0`은 Codex JSONL Observatory의 현재 공개 Windows 포터블 릴리스입니다. [주요 기능](#주요-기능), [세션 읽기](#세션-읽기), [작업 로그 내보내기](#작업-로그-내보내기)에 설명된 제품 흐름 전반을 제공합니다.
+`v1.1.0`은 현재 공개된 Windows 포터블 릴리스입니다. 이번 버전에는 specialized session 처리와 사람이 작성한 요청·runtime 주입 context를 더 명확하게 구분하는 기능이 추가되었습니다.
 
 Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩니다. 별도의 서버 설정, 클라우드 계정, 개발 환경은 필요하지 않습니다.
 
@@ -19,6 +19,9 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
 - 파일 선택기 또는 로컬 경로를 사용해 Codex CLI나 Codex Windows 앱의 세션 JSONL 파일을 엽니다.
 - 파싱된 대화 블록을 **Terminal Style**, **Markdown Style**, **DM Style**, **DM Style (Dark)** 중 원하는 테마로 읽습니다.
 - You, Codex, 도구 호출, 도구 결과, 메타데이터 필터로 원하는 대화 내용에 집중합니다.
+- 사람이 작성한 요청과 확인된 ChatGPT→Work handoff 데이터 및 자동 주입된 ambient UI context를 구분합니다.
+- cached preview를 대화에 반복하지 않고 참조한 ChatGPT conversation의 title과 conversation ID를 provenance로 표시합니다.
+- Guardian review session을 내부 specialized session으로 식별하고, 검증된 thread ID로 로컬 parent session을 엽니다.
 - **Capture Transcript**로 현재 필터와 테마가 적용된 대화 내용을 클립보드 텍스트로 캡처합니다.
 - 상단 컨트롤이나 대화 내용 아래의 작업 버튼에서 선택한 세션을 새로고침합니다.
 - **Copy Resume Command**로 감지된 `codex resume <session-id>` 명령을 복사합니다.
@@ -32,6 +35,18 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
 기본 대화 영역은 파싱된 블록을 선택한 읽기 테마로 표시합니다. 역할 필터는 원본 세션을 변경하지 않고 이 영역에 표시되는 내용만 바꿉니다. **Capture Transcript**는 필터링된 블록을 포함해 현재 대화 영역에 표시된 텍스트를 복사합니다. 대화 영역 아래의 두 번째 **Refresh** 버튼을 사용하면 화면 상단으로 다시 스크롤하지 않아도 선택한 세션을 다시 불러올 수 있습니다. **loaded** 상태를 클릭하면 선택한 세션을 비우고 앱을 초기 idle 상태로 되돌립니다.
 
 세션 ID를 확인할 수 있으면 **Copy Resume Command**가 해당 Codex CLI 재개 명령을 클립보드에 복사합니다.
+
+### 사용자 요청과 주입된 context
+
+JSONL에서 `role=user`인 payload가 항상 사람이 직접 입력한 문장을 뜻하지는 않습니다. ChatGPT→Work session에서는 참조 conversation metadata, 자동 생성된 delegated task, 브라우저나 runtime이 공급한 context가 같은 role에 함께 들어갈 수 있습니다.
+
+Observatory는 실제로 확인된 transport envelope만 보수적으로 식별합니다. `Continuing from ...` delegated task는 title과 `chatgpt-conversation://` ID가 파싱된 reference metadata와 정확히 일치할 때만 숨깁니다. 확인된 `ambient-ui-state` envelope에서는 `## My request:` 뒤의 텍스트만 `[YOU]`로 표시합니다. 알 수 없거나 불완전한 구조는 삭제하지 않고 원문 표시로 fallback합니다.
+
+참조한 ChatGPT conversation은 title과 conversation ID를 가진 session provenance로 한 번만 표시합니다. bounded `priorConversation` cache는 기본 대화 화면에 다시 노출하지 않습니다. 원본 JSONL 파일은 절대 수정하지 않습니다.
+
+### Specialized session
+
+Guardian review rollout은 일반 `[YOU]`/`[CODEX]` 대화가 아니라 내부 specialized session으로 표시합니다. Guardian child session에는 Resume과 Worklog 내보내기를 제공하지 않습니다. 검증된 parent thread ID를 로컬 Codex session 저장소에서 찾으면 **Open Parent Session**으로 기존 session workflow를 통해 해당 rollout을 열고, 찾지 못하면 parent가 로컬에 없다는 상태를 명확히 표시합니다.
 
 ## 작업 로그 내보내기
 
@@ -49,7 +64,7 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
          └─ manifest.json
 ```
 
-각 `[YOU]` 블록은 하나의 작업 단위를 시작합니다. 이후의 Codex/assistant 응답, 도구 호출, 도구 결과, 보고 메시지는 다음 `[YOU]` 블록이 나타날 때까지 같은 작업 단위에 포함됩니다. `000_index.md`는 원본 세션을 설명하고 번호가 붙은 작업 단위 파일을 연결하며, `manifest.json`은 생성된 번들을 기록해 안전하고 호환되는 갱신을 지원합니다.
+사람이 작성한 각 `[YOU]` 블록은 하나의 작업 단위를 시작합니다. 이후의 Codex/assistant 응답, 도구 호출, 도구 결과, 보고 메시지는 다음 `[YOU]` 블록이 나타날 때까지 같은 작업 단위에 포함됩니다. 확인된 delegated handoff task와 ambient UI context는 작업 단위 요청이 되지 않습니다. 참조 conversation의 title, conversation ID, preview availability 상태는 `000_index.md`에 기록하지만 cached preview message는 내보내지 않습니다. `manifest.json`은 생성된 번들을 기록해 안전하고 호환되는 갱신을 지원합니다.
 
 내보내기는 현재 필터링된 대화 화면이 아니라 항상 전체 원본 세션을 사용합니다. 같은 세션에서 만든 호환 가능한 번들을 다시 내보내면 `manifest.json`을 기준으로 생성 파일을 갱신합니다. 내보내기에 성공하면 운영 체제의 파일 탐색기에서 생성된 번들 폴더를 엽니다.
 
@@ -68,7 +83,7 @@ build-and-run.bat
 이 스크립트는 설치 프로그램을 만들지 않고 release 애플리케이션을 빌드하고 다음 포터블 압축 파일을 생성한 뒤 앱을 시작합니다.
 
 ```text
-release\Codex-JSONL-Observatory_1.0.0_windows-x64-portable.zip
+release\Codex-JSONL-Observatory_1.1.0_windows-x64-portable.zip
 ```
 
 압축 파일에는 `codex-jsonl-observatory.exe`, `LICENSE`, 영문·한국어가 함께 수록된 `README.txt`가 포함됩니다. 빌드된 앱은 다음 경로에서 시작됩니다.
