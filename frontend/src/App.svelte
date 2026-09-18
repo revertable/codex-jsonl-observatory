@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import {
     applyParseResponse,
     beginLoad,
@@ -11,6 +12,7 @@
   } from './lib/load-workflow'
   import {
     exportWorklog,
+    getAppVersion,
     locateParentSession,
     parseSelectedJsonl,
     selectJsonlPath,
@@ -30,6 +32,7 @@
   } from './lib/rendering/transcript-themes'
   import type { ApiErrorDto } from './lib/parse-contract'
   import { isSpecializedSession } from './lib/specialized-session'
+  import { findAvailableUpdate, type AvailableUpdate } from './lib/update-check'
 
   let workflow: LoadWorkflowState = createInitialLoadWorkflowState()
   let actionStatusMessage = ''
@@ -39,6 +42,26 @@
   let parentSessionStatusMessage = ''
   let selectedTheme: TranscriptThemeName = 'Terminal Style'
   let collapsedBlocks: Record<number, boolean> = {}
+  let availableUpdate: AvailableUpdate | null = null
+
+  onMount(() => {
+    let active = true
+
+    void getAppVersion()
+      .then((currentVersion) => findAvailableUpdate(currentVersion))
+      .then((update) => {
+        if (active) {
+          availableUpdate = update
+        }
+      })
+      .catch(() => {
+        // Update availability is optional and must not interrupt the local workflow.
+      })
+
+    return () => {
+      active = false
+    }
+  })
 
   function replaceWorkflow(nextWorkflow: LoadWorkflowState) {
     const shouldResetCollapse = transcriptScopeChanged(
@@ -368,6 +391,7 @@
         <TerminalTranscript
           theme={selectedTheme}
           isLoaded={workflow.status === 'loaded'}
+          {availableUpdate}
           showIdentityNote={workflow.status !== 'loaded'}
           observedEventCounts={workflow.loaded_file.observed_event_counts}
           blocks={workflow.observations.transcript_blocks}
@@ -379,6 +403,7 @@
         <MarkdownTranscript
           theme={selectedTheme}
           isLoaded={workflow.status === 'loaded'}
+          {availableUpdate}
           observedEventCounts={workflow.loaded_file.observed_event_counts}
           blocks={workflow.observations.transcript_blocks}
           references={workflow.observations.referenced_conversations}
@@ -389,6 +414,7 @@
         <ChatTranscript
           theme={selectedTheme as 'DM Style' | 'DM Style (Dark)'}
           isLoaded={workflow.status === 'loaded'}
+          {availableUpdate}
           observedEventCounts={workflow.loaded_file.observed_event_counts}
           blocks={workflow.observations.transcript_blocks}
           references={workflow.observations.referenced_conversations}

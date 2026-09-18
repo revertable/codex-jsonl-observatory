@@ -155,8 +155,7 @@ code {
   background: #ffffff;
 }
 
-.panel-heading,
-.render-header {
+.panel-heading {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -539,71 +538,6 @@ dd {
 .transcript-actions .compact-action-button {
   white-space: nowrap;
 }
-
-.render-block {
-  min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 12px;
-  background: #fbfbf9;
-}
-
-.render-header {
-  flex-wrap: wrap;
-  margin-bottom: 7px;
-}
-
-.render-index {
-  display: inline-grid;
-  width: 24px;
-  height: 24px;
-  place-items: center;
-  border-radius: 999px;
-  color: var(--muted);
-  background: #eef0f2;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-
-.render-header span:not(.render-index) {
-  color: var(--muted);
-}
-
-.render-block pre {
-  margin: 0;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font: 14px/1.55 var(--mono);
-  color: var(--text);
-}
-
-.render-block[data-family='you'] {
-  border-left: 4px solid #2563eb;
-}
-
-.render-block[data-family='codex'] {
-  border-left: 4px solid #15803d;
-}
-
-.render-block[data-family='meta'] {
-  border-left: 4px solid #64748b;
-}
-
-.render-block[data-family='tool'] {
-  border-left: 4px solid #7c3aed;
-}
-
-.render-block[data-family='result'] {
-  border-left: 4px solid #ca8a04;
-}
-
-.render-block[data-family='unknown'] {
-  border-left: 4px solid var(--danger);
-}
-
-
-
 
 @media (max-width: 900px) {
   .control-room {

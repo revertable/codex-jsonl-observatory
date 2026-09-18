@@ -10,7 +10,10 @@
       "identifier": "opener:allow-open-url",
       "allow": [
         {
-          "url": "https://riu-salze-studio.gitbook.io/cosmic-horizon"
+          "url": "https://riu-salze-studio.gitbook.io/cosmic-horizon?utm_source=codex_jsonl_observatory&utm_medium=desktop_app&utm_campaign=visit_cosmic_horizon"
+        },
+        {
+          "url": "https://github.com/revertable/codex-jsonl-observatory/releases/latest"
         }
       ]
     }

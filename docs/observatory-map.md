@@ -123,6 +123,7 @@ It should handle:
 * Worklog export action UI
 * specialized-session presentation and parent navigation
 * user-visible status and error display
+* launch-time public release availability display
 
 Current responsibility-oriented component areas include:
 
@@ -135,6 +136,8 @@ frontend/src/lib/specialized-session.ts
 ```
 
 The frontend retains the complete loaded transcript block set and projects role filters locally. Renderers receive the projected blocks plus explicit collapse state; filter and theme changes do not trigger an additional keyed remount of the transcript container. Transcript capture is a data-based serialization of the current theme, projected blocks, references, event summary, and collapse state rather than a readback from DOM text.
+
+Filter semantics are shared across the backend domain, transport projection, and frontend projection. `You` includes only human-visible `You` observations. `Meta` includes `Context`, `Task`, and `System` observations. Tool calls and tool results remain independently selectable.
 
 ---
 
@@ -149,6 +152,7 @@ It should handle:
 * opening exported folders or related external links
 * desktop capabilities and application configuration
 * portable Windows packaging support
+* narrowly scoped external-link permissions for documented product links
 
 Business parsing, session classification, parent lookup, and Worklog generation remain in the backend crate rather than Tauri command handlers.
 

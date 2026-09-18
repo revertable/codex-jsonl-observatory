@@ -1,3 +1,4 @@
+import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { ApiErrorDto, ErrorResponseDto, FilterDto, ParseResponseDto } from './parse-contract'
@@ -6,6 +7,10 @@ import type { ExportWorklogResponse } from './worklog-contract'
 
 let lastSelectedDirectory: string | null = null
 let lastWorklogParentDirectory: string | null = null
+
+export function getAppVersion(): Promise<string> {
+  return getVersion()
+}
 
 export async function selectJsonlPath(): Promise<string | null> {
   const defaultPath = await invoke<string>('resolve_jsonl_initial_directory', {

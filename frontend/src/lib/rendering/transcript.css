@@ -367,6 +367,30 @@
   outline: none;
 }
 
+.update-notice {
+  font-weight: 700;
+}
+
+.update-notice a {
+  white-space: nowrap;
+}
+
+.terminal-transcript .update-notice {
+  color: #f0c674;
+}
+
+.terminal-transcript .update-notice a {
+  color: #78c8ff;
+  font: inherit;
+  text-decoration: none;
+}
+
+.terminal-transcript .update-notice a:hover,
+.terminal-transcript .update-notice a:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
 .terminal-metadata {
   color: #969696;
 }

@@ -12,7 +12,9 @@ Codex JSONL Observatory는 Codex 세션 JSONL 파일을 읽고 버전 관리가 
 
 Codex JSONL Observatory는 이 제품 계보의 이전 도구인 [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer)를 잇는 2세대 앱입니다. Codex 세션 JSONL 파일을 읽는다는 동일한 목적을 유지하면서, 전체 작업 흐름을 Rust/Svelte/Tauri 기반의 로컬 데스크톱 앱으로 다시 구축했습니다.
 
-현재 공개된 Windows 포터블 릴리스는 핵심 대화 중심의 기본 필터, 대화 상단으로 빠르게 이동하는 기능, 불필요한 Terminal 여백 제거로 transcript 탐색을 다듬었습니다.
+현재 공개된 Windows 포터블 릴리스는 `v1.1.2`입니다. 핵심 대화 중심의 기본 필터, 대화 상단으로 빠르게 이동하는 기능, 불필요한 Terminal 여백 제거로 transcript 탐색을 다듬었습니다.
+
+`main` 브랜치는 개발 버전 `1.1.3`으로 준비 중입니다. 따라서 최신 공개 릴리스가 `v1.1.2`인 동안에도 `main`에서 직접 빌드한 결과물에는 다음 개발 버전이 사용됩니다.
 
 Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩니다. 별도의 서버 설정, 클라우드 계정, 개발 환경은 필요하지 않습니다.
 
@@ -28,6 +30,7 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
 - 상단 컨트롤이나 대화 내용 아래의 작업 버튼에서 선택한 세션을 새로고침합니다.
 - **Copy Resume Command**로 감지된 `codex resume <session-id>` 명령을 복사합니다.
 - **Visit Cosmic Horizon**으로 관련 [Cosmic Horizon Archive](https://riu-salze-studio.gitbook.io/cosmic-horizon)를 엽니다.
+- 더 새로운 공개 버전이 있으면 초기 화면에 GitHub Releases 링크와 함께 업데이트 안내를 표시합니다.
 - **Export Worklog**로 전체 세션을 버전 관리 가능한 작업 로그 번들로 내보냅니다.
 
 ## 세션 읽기
@@ -37,6 +40,8 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
 기본 대화 영역은 파싱된 블록을 선택한 읽기 테마로 표시합니다. 역할 필터는 원본 세션을 변경하지 않고 이 영역에 표시되는 내용만 바꿉니다. **Capture Transcript**는 필터링된 블록을 포함해 현재 대화 영역에 표시된 텍스트를 복사합니다. 대화 영역 아래의 두 번째 **Refresh** 버튼을 사용하면 화면 상단으로 다시 스크롤하지 않아도 선택한 세션을 다시 불러올 수 있습니다. **loaded** 상태를 클릭하면 선택한 세션을 비우고 앱을 초기 idle 상태로 되돌립니다.
 
 세션 ID를 확인할 수 있으면 **Copy Resume Command**가 해당 Codex CLI 재개 명령을 클립보드에 복사합니다.
+
+Observatory는 시작할 때 공개 GitHub Releases API에 인증 없는 요청을 한 번 보내 최신 공개 릴리스와 실행 중인 앱 버전을 비교합니다. 세션 내용, 선택한 경로, 세션 식별자는 전송하지 않습니다. 확인할 수 없거나 버전 형식을 인식할 수 없으면 업데이트 안내 없이 기존 작업을 계속합니다.
 
 ### 사용자 요청과 주입된 context
 
@@ -85,7 +90,7 @@ build-and-run.bat
 이 스크립트는 설치 프로그램을 만들지 않고 release 애플리케이션을 빌드하고 다음 포터블 압축 파일을 생성한 뒤 앱을 시작합니다.
 
 ```text
-release\Codex-JSONL-Observatory_1.1.2_windows-x64-portable.zip
+release\Codex-JSONL-Observatory_1.1.3_windows-x64-portable.zip
 ```
 
 압축 파일에는 `codex-jsonl-observatory.exe`, `LICENSE`, 영문·한국어가 함께 수록된 `README.txt`가 포함됩니다. 빌드된 앱은 다음 경로에서 시작됩니다.

@@ -1,8 +1,6 @@
 use indexmap::IndexMap;
 
-use super::{
-    ChatEntryFilter, RenderedEntry, RenderedEntryKind, SessionProvenance, TranscriptBlock,
-};
+use super::{ChatEntryFilter, RenderedEntry, SessionProvenance, TranscriptBlock};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParsedChatLog {
@@ -33,14 +31,14 @@ impl ParsedChatLog {
             entries: self
                 .entries
                 .iter()
-                .filter(|entry| filter_allows_kind(filter, entry.kind))
+                .filter(|entry| filter.allows(entry.kind))
                 .cloned()
                 .collect(),
             entry_timestamps: self
                 .entries
                 .iter()
                 .zip(&self.entry_timestamps)
-                .filter(|(entry, _)| filter_allows_kind(filter, entry.kind))
+                .filter(|(entry, _)| filter.allows(entry.kind))
                 .map(|(_, timestamp)| timestamp.clone())
                 .collect(),
             session_provenance: self.session_provenance.clone(),
@@ -67,20 +65,10 @@ impl ParsedChatLog {
     }
 }
 
-fn filter_allows_kind(filter: &ChatEntryFilter, kind: RenderedEntryKind) -> bool {
-    match kind {
-        RenderedEntryKind::Context | RenderedEntryKind::System => filter.show_meta,
-        RenderedEntryKind::Task | RenderedEntryKind::You => filter.show_you,
-        RenderedEntryKind::Codex => filter.show_codex,
-        RenderedEntryKind::ToolCall => filter.show_tool_call,
-        RenderedEntryKind::ToolResult => filter.show_tool_result,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::ReferencedConversation;
+    use crate::domain::{ReferencedConversation, RenderedEntryKind};
 
     fn sample_log() -> ParsedChatLog {
         let mut observed_event_counts = IndexMap::new();
@@ -126,7 +114,7 @@ mod tests {
         assert_eq!(filtered.malformed_lines, parsed.malformed_lines);
         assert_eq!(filtered.observed_event_counts, parsed.observed_event_counts);
         assert_eq!(parsed.entries.len(), 7);
-        assert_eq!(filtered.entries.len(), 5);
+        assert_eq!(filtered.entries.len(), 6);
     }
 
     #[test]
@@ -141,6 +129,7 @@ mod tests {
             filtered.entries,
             vec![
                 entry(RenderedEntryKind::Context, "context"),
+                entry(RenderedEntryKind::Task, "task"),
                 entry(RenderedEntryKind::Codex, "codex"),
                 entry(RenderedEntryKind::ToolResult, "tool result"),
                 entry(RenderedEntryKind::System, "system"),
@@ -149,17 +138,23 @@ mod tests {
     }
 
     #[test]
-    fn turning_off_you_hides_you_and_task_entries() {
+    fn turning_off_you_hides_only_you_entries() {
         let filtered = sample_log().filtered(&ChatEntryFilter {
             show_you: false,
             ..ChatEntryFilter::all()
         });
 
         assert!(
-            !filtered.entries.iter().any(|entry| matches!(
-                entry.kind,
-                RenderedEntryKind::Task | RenderedEntryKind::You
-            ))
+            !filtered
+                .entries
+                .iter()
+                .any(|entry| entry.kind == RenderedEntryKind::You)
+        );
+        assert!(
+            filtered
+                .entries
+                .iter()
+                .any(|entry| entry.kind == RenderedEntryKind::Task)
         );
     }
 
@@ -209,7 +204,7 @@ mod tests {
     }
 
     #[test]
-    fn turning_off_meta_hides_system_and_context_entries() {
+    fn turning_off_meta_hides_context_task_and_system_entries() {
         let filtered = sample_log().filtered(&ChatEntryFilter {
             show_meta: false,
             ..ChatEntryFilter::all()
@@ -217,7 +212,7 @@ mod tests {
 
         assert!(!filtered.entries.iter().any(|entry| matches!(
             entry.kind,
-            RenderedEntryKind::Context | RenderedEntryKind::System
+            RenderedEntryKind::Context | RenderedEntryKind::Task | RenderedEntryKind::System
         )));
     }
 

@@ -1,15 +1,19 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener'
   import type { ObservedEventCountDto, ReferencedConversationDto, TranscriptBlockDto } from '../parse-contract'
+  import type { AvailableUpdate } from '../update-check'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
   import ConversationReferences from './ConversationReferences.svelte'
+  import UpdateNotice from './UpdateNotice.svelte'
 
-  const COSMIC_HORIZON_URL = 'https://riu-salze-studio.gitbook.io/cosmic-horizon'
+  const COSMIC_HORIZON_URL =
+    'https://riu-salze-studio.gitbook.io/cosmic-horizon?utm_source=codex_jsonl_observatory&utm_medium=desktop_app&utm_campaign=visit_cosmic_horizon'
 
   interface Props {
     theme: TranscriptThemeName
     isLoaded: boolean
+    availableUpdate: AvailableUpdate | null
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
     references: ReferencedConversationDto[]
@@ -20,6 +24,7 @@
   let {
     theme,
     isLoaded,
+    availableUpdate,
     observedEventCounts,
     blocks,
     references,
@@ -49,6 +54,9 @@
           Cosmic Horizon Archive
           <a href={COSMIC_HORIZON_URL} onclick={visitCosmicHorizon}>[Visit]</a>
         </p>
+        {#if availableUpdate !== null}
+          <p><UpdateNotice update={availableUpdate} /></p>
+        {/if}
         <p>Select a local JSONL session to begin.</p>
         <p class="markdown-empty-metadata">Current theme: {theme}</p>
       </div>

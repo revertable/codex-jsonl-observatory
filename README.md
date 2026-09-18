@@ -12,7 +12,9 @@ Use it for transcript reading, capturing a filtered transcript as text, or turni
 
 Codex JSONL Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
 
-The current public Windows portable release sharpens transcript focus with conversation-first default filters, adds a quick return to the top, and removes redundant terminal spacing.
+The current public Windows portable release is `v1.1.2`. It sharpens transcript focus with conversation-first default filters, adds a quick return to the top, and removes redundant terminal spacing.
+
+The `main` branch is being prepared as development version `1.1.3`. Source builds from `main` therefore use the next development version even while `v1.1.2` remains the latest public release.
 
 Just download the Windows portable zip, unzip it, and run the app. No server setup, cloud account, or developer environment is required.
 
@@ -28,6 +30,7 @@ Just download the Windows portable zip, unzip it, and run the app. No server set
 - Refresh the selected session from either the top controls or the actions below the transcript.
 - Copy the detected `codex resume <session-id>` command with **Copy Resume Command**.
 - Open the related [Cosmic Horizon Archive](https://riu-salze-studio.gitbook.io/cosmic-horizon) with **Visit Cosmic Horizon**.
+- Show an initial-screen notice with a link to GitHub Releases when a newer public version is available.
 - Export the complete session as a versionable worklog bundle with **Export Worklog**.
 
 ## Reading a session
@@ -37,6 +40,8 @@ Use **Select JSONL** to choose a Codex session JSONL file from Codex CLI or the 
 The main transcript presents parsed blocks in the selected reading theme. Role filters change what appears in this view without changing the source session. **Capture Transcript** copies the text currently displayed in the transcript, including the filtered blocks. A second **Refresh** action below the transcript reloads the selected session without requiring you to scroll back to the top. Click the **loaded** status to clear the selected session and return the app to its initial idle state.
 
 When a session ID is available, **Copy Resume Command** copies the corresponding Codex CLI resume command to the clipboard.
+
+On launch, Observatory makes one unauthenticated request to the public GitHub Releases API to compare the latest published release with the running app version. It does not send session content, selected paths, or session identifiers. If the check is unavailable or returns an unrecognized version, the app continues without showing an update notice.
 
 ### Human requests and injected context
 
@@ -85,7 +90,7 @@ build-and-run.bat
 The script builds the release application without generating an installer, creates the following portable archive, and then starts the application:
 
 ```text
-release\Codex-JSONL-Observatory_1.1.2_windows-x64-portable.zip
+release\Codex-JSONL-Observatory_1.1.3_windows-x64-portable.zip
 ```
 
 The archive contains `codex-jsonl-observatory.exe`, `LICENSE`, and a bilingual `README.txt`. The built application is started from:

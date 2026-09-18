@@ -16,6 +16,14 @@ Collapse state is owned by `App.svelte` and is reset when the transcript scope
 same filtered blocks, references, theme, and collapse state directly from data;
 it does not scrape rendered DOM text.
 
+## Update availability
+
+At launch, `App.svelte` reads the packaged application version and performs one
+unauthenticated request to GitHub's latest public release endpoint. A notice is
+passed to the three initial transcript presentations only when the returned
+stable version is newer. Network failures and unrecognized responses remain
+silent, and the fixed official Releases URL is the only update link opened.
+
 ## Development
 
 Run these commands from `frontend/`:

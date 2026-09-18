@@ -437,7 +437,7 @@ impl ParsedChatLogDto {
         for entry in parsed
             .entries
             .iter()
-            .filter(|entry| api_filter_allows_kind(filter, entry.kind))
+            .filter(|entry| filter.allows(entry.kind))
         {
             push_entry_dtos(
                 &mut entries,
@@ -484,7 +484,7 @@ impl ParsedChatLogDto {
         for entry in parsed
             .entries
             .into_iter()
-            .filter(|entry| api_filter_allows_kind(filter, entry.kind))
+            .filter(|entry| filter.allows(entry.kind))
         {
             push_entry_dtos(
                 &mut entries,
@@ -548,18 +548,6 @@ fn push_entry_dtos(
         title: label,
         content,
     });
-}
-
-fn api_filter_allows_kind(filter: &ChatEntryFilter, kind: RenderedEntryKind) -> bool {
-    match kind {
-        RenderedEntryKind::Context | RenderedEntryKind::Task | RenderedEntryKind::System => {
-            filter.show_meta
-        }
-        RenderedEntryKind::You => filter.show_you,
-        RenderedEntryKind::Codex => filter.show_codex,
-        RenderedEntryKind::ToolCall => filter.show_tool_call,
-        RenderedEntryKind::ToolResult => filter.show_tool_result,
-    }
 }
 
 impl RenderedEntryDto {
