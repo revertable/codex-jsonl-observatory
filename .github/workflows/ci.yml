@@ -102,6 +102,20 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
 
+      - name: Restore Rust dependency build cache
+        continue-on-error: true
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          prefix-key: v1-rust
+          shared-key: windows-verify
+          workspaces: |
+            backend -> target
+            frontend/src-tauri -> target
+          cache-bin: 'false'
+          cache-all-crates: 'false'
+          cache-workspace-crates: 'false'
+          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci

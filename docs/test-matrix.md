@@ -55,6 +55,19 @@ Windows verification. The workflow remains triggered for Markdown-only changes
 so its jobs report a completed result rather than leaving a path-filtered check
 pending.
 
+Before full verification, CI uses a commit-pinned Rust-specific cache action to
+restore dependency build artifacts for the `backend` and
+`frontend/src-tauri` Cargo workspaces. The cache excludes workspace crates,
+Cargo binaries, and incremental artifacts; the action therefore disables Cargo
+incremental compilation for the CI job. Its key accounts for the exact Rust
+toolchain, Cargo manifests and lockfiles, Cargo configuration, and relevant
+compiler environment variables.
+
+Pull requests may restore an available base-branch cache but do not save cache
+entries. Only successful pushes to `main` save the cleaned cache. Cache restore
+or save failures do not replace or fail the full verification path; Cargo must
+remain able to rebuild every artifact from the locked dependency graph.
+
 The CI workflow has read-only repository contents permission. It does not use
 secrets, upload artifacts, create a portable ZIP, launch the application, sign
 code, create tags, or publish a release. Those packaging, manual, and release
