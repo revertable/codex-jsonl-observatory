@@ -8,6 +8,24 @@ $frontendDirectory = Join-Path $repositoryRoot 'frontend'
 $backendManifest = Join-Path $repositoryRoot 'backend\Cargo.toml'
 $tauriManifest = Join-Path $frontendDirectory 'src-tauri\Cargo.toml'
 
+function Resolve-ApplicationPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $commandInfo = Get-Command $Name `
+        -CommandType Application `
+        -ErrorAction Stop |
+        Select-Object -First 1
+
+    if ($null -eq $commandInfo) {
+        throw "Required application was not found: $Name"
+    }
+
+    return [string]$commandInfo.Source
+}
+
 function Invoke-VerificationStep {
     param(
         [Parameter(Mandatory = $true)]
@@ -49,8 +67,11 @@ foreach ($manifestPath in @($backendManifest, $tauriManifest)) {
     }
 }
 
-$npmCommand = (Get-Command npm.cmd -CommandType Application -ErrorAction Stop).Source
-$cargoCommand = (Get-Command cargo.exe -CommandType Application -ErrorAction Stop).Source
+$npmCommand = Resolve-ApplicationPath -Name 'npm.cmd'
+$cargoCommand = Resolve-ApplicationPath -Name 'cargo.exe'
+
+Write-Host "[TOOL] npm: $npmCommand" -ForegroundColor DarkGray
+Write-Host "[TOOL] cargo: $cargoCommand" -ForegroundColor DarkGray
 
 Invoke-VerificationStep `
     -Name 'Frontend tests' `
