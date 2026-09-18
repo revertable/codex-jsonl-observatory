@@ -10,8 +10,80 @@ permissions:
   contents: read
 
 jobs:
+  classify:
+    name: Classify changed files
+    runs-on: ubuntu-latest
+    outputs:
+      run_full_verification: ${{ steps.changes.outputs.run_full_verification }}
+
+    steps:
+      - name: Check out repository history
+        id: checkout
+        continue-on-error: true
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether full verification is required
+        id: changes
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          EVENT_NAME: ${{ github.event_name }}
+          PULL_REQUEST_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PULL_REQUEST_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          PUSH_AFTER_SHA: ${{ github.sha }}
+        run: |
+          run_full_verification=true
+          comparison=
+
+          if [[ "$CHECKOUT_OUTCOME" == "success" ]]; then
+            case "$EVENT_NAME" in
+              pull_request)
+                if [[ -n "$PULL_REQUEST_BASE_SHA" && -n "$PULL_REQUEST_HEAD_SHA" ]] &&
+                   git cat-file -e "${PULL_REQUEST_BASE_SHA}^{commit}" 2>/dev/null &&
+                   git cat-file -e "${PULL_REQUEST_HEAD_SHA}^{commit}" 2>/dev/null; then
+                  comparison="${PULL_REQUEST_BASE_SHA}...${PULL_REQUEST_HEAD_SHA}"
+                fi
+                ;;
+              push)
+                if [[ -n "$PUSH_BEFORE_SHA" && ! "$PUSH_BEFORE_SHA" =~ ^0+$ && -n "$PUSH_AFTER_SHA" ]] &&
+                   git cat-file -e "${PUSH_BEFORE_SHA}^{commit}" 2>/dev/null &&
+                   git cat-file -e "${PUSH_AFTER_SHA}^{commit}" 2>/dev/null; then
+                  comparison="${PUSH_BEFORE_SHA}..${PUSH_AFTER_SHA}"
+                fi
+                ;;
+            esac
+          fi
+
+          changed_files="$RUNNER_TEMP/changed-files"
+          if [[ -n "$comparison" ]] &&
+             git diff --no-renames --name-only -z "$comparison" > "$changed_files"; then
+            markdown_only=true
+            changed_file_count=0
+
+            while IFS= read -r -d '' changed_file; do
+              changed_file_count=$((changed_file_count + 1))
+              case "${changed_file,,}" in
+                *.md) ;;
+                *) markdown_only=false ;;
+              esac
+            done < "$changed_files"
+
+            if [[ "$changed_file_count" -gt 0 && "$markdown_only" == "true" ]]; then
+              run_full_verification=false
+            fi
+          fi
+
+          echo "run_full_verification=$run_full_verification" >> "$GITHUB_OUTPUT"
+          echo "Full Windows verification required: $run_full_verification" >> "$GITHUB_STEP_SUMMARY"
+
   verify:
     name: Full verification (Windows)
+    needs: classify
+    if: ${{ always() && needs.classify.outputs.run_full_verification != 'false' }}
     runs-on: windows-latest
     timeout-minutes: 30
 

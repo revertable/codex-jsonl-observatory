@@ -6,9 +6,10 @@ This document defines the current verification contract for Codex JSONL
 Observatory. Use it to select checks that match the files and behavior changed.
 
 The repository provides one local command that runs the complete automated
-suite. CI invokes the same entry point for pull requests and pushes to `main`.
-Run each applicable command explicitly when full verification is not required,
-and report checks that were passed, failed, or not run.
+suite. For pull requests and pushes to `main`, CI invokes the same entry point
+when at least one changed file is not Markdown or when it cannot safely classify
+the change set. Run each applicable command explicitly when full verification
+is not required, and report checks that were passed, failed, or not run.
 
 ## Command Locations
 
@@ -41,10 +42,18 @@ commands in a fresh checkout.
 
 ## Continuous Integration
 
-`.github/workflows/ci.yml` runs the full automated verification on
-`windows-latest` with Node.js 24 and Rust stable. The workflow installs locked
-frontend dependencies with `npm ci`, then invokes `verify.ps1` from the
-repository root.
+`.github/workflows/ci.yml` first classifies the complete change set for a pull
+request or push to `main`. When every changed path ends in `.md`
+(case-insensitive), it skips the full Windows verification. If any changed path
+is not Markdown, it runs the full automated verification on `windows-latest`
+with Node.js 24 and Rust stable. The workflow installs locked frontend
+dependencies with `npm ci`, then invokes `verify.ps1` from the repository root.
+
+Change classification is fail-safe. If checkout or changed-file comparison
+fails, or the required comparison commits are unavailable, CI runs the full
+Windows verification. The workflow remains triggered for Markdown-only changes
+so its jobs report a completed result rather than leaving a path-filtered check
+pending.
 
 The CI workflow has read-only repository contents permission. It does not use
 secrets, upload artifacts, create a portable ZIP, launch the application, sign
