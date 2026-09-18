@@ -1,0 +1,143 @@
+# Test Matrix
+
+## Purpose
+
+This document defines the current verification contract for Codex JSONL
+Observatory. Use it to select checks that match the files and behavior changed.
+
+The repository provides one local command that runs the complete automated
+suite. CI invokes the same entry point for pull requests and pushes to `main`.
+Run each applicable command explicitly when full verification is not required,
+and report checks that were passed, failed, or not run.
+
+## Command Locations
+
+Run the full local automated verification from the repository root:
+
+```text
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
+```
+
+Frontend commands run from `frontend/`:
+
+```text
+npm test
+npm run check
+npm run build
+npm run tauri:dev
+npm run tauri:build -- --no-bundle
+```
+
+Rust checks may be run from the repository root so their package boundary is
+explicit:
+
+```text
+cargo test --manifest-path backend/Cargo.toml
+cargo test --manifest-path frontend/src-tauri/Cargo.toml
+```
+
+Install frontend dependencies with `npm ci` from `frontend/` before running npm
+commands in a fresh checkout.
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs the full automated verification on
+`windows-latest` with Node.js 24 and Rust stable. The workflow installs locked
+frontend dependencies with `npm ci`, then invokes `verify.ps1` from the
+repository root.
+
+The CI workflow has read-only repository contents permission. It does not use
+secrets, upload artifacts, create a portable ZIP, launch the application, sign
+code, create tags, or publish a release. Those packaging, manual, and release
+boundaries remain separate from automated verification.
+
+## What Each Check Covers
+
+| Check | Coverage | Notes |
+| --- | --- | --- |
+| `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1` | Complete frontend, backend, and desktop automated verification | Runs the full sequence below and stops at the first failing step. It does not install dependencies, package a portable ZIP, or launch the application. |
+| `npm test` | Frontend workflow, transcript projection and capture, and update-check behavior | Runs the TypeScript tests listed in `frontend/package.json`. |
+| `npm run check` | Svelte and TypeScript static validation | Does not run frontend or Rust tests. |
+| `npm run build` | Production frontend bundle | Also runs automatically before a Tauri build. |
+| `cargo test --manifest-path backend/Cargo.toml` | Parser, inspection, session routing, domain, API, and Worklog behavior | This is the primary Observatory Core test suite. |
+| `cargo test --manifest-path frontend/src-tauri/Cargo.toml` | Tauri command adaptation and desktop bridge behavior | Compiling the backend as a dependency does not replace the backend test command. |
+| `npm run tauri:dev` | Interactive desktop development run | This is a manual runtime check, not an automated test. |
+| `npm run tauri:build -- --no-bundle` | Release-mode desktop compilation without installer generation | Use when the desktop integration or production build boundary is affected. |
+| `build-and-run.bat` from the repository root | Release build, portable ZIP creation, and application launch | This is a Windows packaging and smoke path; it does not run tests or static checks. |
+
+## Change Matrix
+
+Run all checks marked **Required** for the affected row. Add the conditional
+checks when the stated boundary is involved. When a change spans multiple rows,
+combine their requirements.
+
+| Change area | Required verification | Conditional or manual verification |
+| --- | --- | --- |
+| Documentation only | Inspect the rendered Markdown, links, paths, and commands; confirm `git diff --check` | Run referenced commands when the documentation changes their contract or expected output. |
+| Frontend state, load workflow, filters, or update check | `npm test`; `npm run check`; `npm run build` | `npm run tauri:dev` for interaction or platform behavior. |
+| Transcript rendering, themes, collapse, or capture | `npm test`; `npm run check`; `npm run build` | Manually inspect each affected presentation and relevant filtered/collapsed states in `npm run tauri:dev`. |
+| Backend parser, transport decoding, inspection, domain, or session routing | `cargo test --manifest-path backend/Cargo.toml` | Add `npm test` and a desktop smoke check when transported data or visible behavior changes. |
+| Backend API or Worklog export | `cargo test --manifest-path backend/Cargo.toml` | Run the applicable frontend checks when DTOs or UI-visible behavior change; manually inspect generated Worklog output when export structure changes. |
+| Tauri commands or desktop bridge | `cargo test --manifest-path frontend/src-tauri/Cargo.toml`; `npm run check`; `npm run build` | Run backend tests when backend contracts change; use `npm run tauri:dev` for command integration. |
+| Tauri capabilities, configuration, icons, or desktop integration | `npm run check`; `npm run tauri:build -- --no-bundle` | Exercise the affected permission or platform behavior in the built application. |
+| Dependency or lockfile changes | Tests and builds for every affected package | Use `npm ci` in a clean dependency state when npm resolution changes. Review both direct and transitive dependency changes. |
+| Portable packaging or release behavior | `npm run tauri:build -- --no-bundle`; `build-and-run.bat` | Inspect the ZIP contents, versioned archive name, bundled README and license, and application startup. Release publication remains a separate approved Git/release action. |
+
+## Full Verification
+
+Use the following sequence when a change crosses the frontend, backend, and
+desktop boundaries, or when release confidence requires the complete automated
+suite:
+
+```text
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
+```
+
+The integrated entry point runs the following commands in order and stops at
+the first failure:
+
+```text
+cd frontend
+npm test
+npm run check
+npm run build
+cd ..
+cargo test --manifest-path backend/Cargo.toml
+cargo test --manifest-path frontend/src-tauri/Cargo.toml
+cd frontend
+npm run tauri:build -- --no-bundle
+```
+
+`npm run build` is repeated by the Tauri build through `beforeBuildCommand`.
+Keeping the standalone step makes frontend build failures easier to identify;
+it may be omitted only when the Tauri build is run and its frontend build result
+is reported explicitly.
+
+## Manual Verification Boundaries
+
+Automated checks do not replace targeted observation of user-visible or
+platform behavior. Manual verification is expected when a change affects:
+
+- native file or folder dialogs;
+- clipboard operations or transcript capture presentation;
+- opening folders, releases, or other external links;
+- role filters, themes, collapse state, refresh, or parent-session navigation;
+- Tauri permissions and platform-specific integration;
+- portable archive contents or launch behavior.
+
+Use only sanitized sample data for repository fixtures. Real Codex logs remain
+outside version control and must not be exposed in verification reports.
+
+## Verification Reporting
+
+Every implementation report must state the verification status. Record each
+applicable check as one of:
+
+- **Passed**: the command or manual scenario completed successfully.
+- **Failed**: include the failing command or scenario and a concise cause.
+- **Not run**: include the reason and the remaining risk.
+- **Not applicable**: use only when the change does not reach that verification
+  boundary.
+
+A successful build is not evidence that tests passed. A successful test run is
+not approval to commit, push, tag, publish, or change release state.

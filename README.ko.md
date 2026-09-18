@@ -81,7 +81,13 @@ Guardian review rollout은 일반 `[YOU]`/`[CODEX]` 대화가 아니라 내부 s
 
 ## Windows에서 빌드 및 실행
 
-Windows에서 소스 코드를 직접 빌드하려면 npm이 포함된 Node.js와 Rust stable toolchain을 설치합니다. 저장소 루트에서 `build-and-run.bat`을 더블클릭하거나 다음 명령을 실행합니다.
+Windows에서 소스 코드를 직접 빌드하려면 npm이 포함된 Node.js와 Rust stable toolchain을 설치합니다. 새로 받은 저장소에서는 먼저 `frontend/`에서 잠긴 프런트엔드 의존성을 설치합니다.
+
+```text
+npm ci
+```
+
+그런 다음 저장소 루트에서 `build-and-run.bat`을 더블클릭하거나 다음 명령을 실행합니다.
 
 ```text
 build-and-run.bat
@@ -103,11 +109,10 @@ frontend\src-tauri\target\release\codex-jsonl-observatory.exe
 
 이 애플리케이션은 Tauri 데스크톱 셸 안에서 Svelte 프런트엔드를 사용합니다. Tauri는 로컬 JSONL 처리를 위해 Rust 파서와 내보내기 계층을 직접 호출합니다.
 
-개발 및 검증 명령은 `frontend/`에서 실행합니다.
+대화형 데스크톱 개발 실행은 `frontend/`에서 다음 명령을 사용합니다.
 
 ```text
-npm run check
-npm run build
 npm run tauri:dev
-npm run tauri:build
 ```
+
+자동 테스트, 정적 검사, 프로덕션 빌드, Rust 패키지 테스트, 데스크톱 빌드 검증과 변경 범위별 요구 사항은 [검증 매트릭스](docs/test-matrix.md)를 따릅니다.

@@ -26,14 +26,17 @@ silent, and the fixed official Releases URL is the only update link opened.
 
 ## Development
 
-Run these commands from `frontend/`:
+Install the locked dependencies and start an interactive desktop development
+run from `frontend/`:
 
 ```text
-npm test
-npm run check
-npm run build
+npm ci
 npm run tauri:dev
 ```
+
+For automated tests, static checks, production builds, Rust package tests,
+desktop build verification, and change-specific requirements, follow the
+[test matrix](../docs/test-matrix.md).
 
 The desktop command layer is under `src-tauri/`. It adapts typed backend DTOs to
 Tauri commands and must not duplicate parser or session-routing behavior.

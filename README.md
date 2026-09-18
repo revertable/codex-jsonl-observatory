@@ -81,7 +81,13 @@ Directory and file names use local, user-facing time. Original timestamps remain
 
 ## Build and run on Windows
 
-To build from a source checkout on Windows, install Node.js with npm and the Rust stable toolchain. From the repository root, double-click `build-and-run.bat` or run:
+To build from a source checkout on Windows, install Node.js with npm and the Rust stable toolchain. In a fresh checkout, install the locked frontend dependencies once from `frontend/`:
+
+```text
+npm ci
+```
+
+Then, from the repository root, double-click `build-and-run.bat` or run:
 
 ```text
 build-and-run.bat
@@ -103,11 +109,12 @@ frontend\src-tauri\target\release\codex-jsonl-observatory.exe
 
 The application uses a Svelte frontend in a Tauri desktop shell. Tauri calls the Rust parser and export boundary directly for local JSONL processing.
 
-Development and verification commands run from `frontend/`:
+For an interactive desktop development run, use the following command from `frontend/`:
 
 ```text
-npm run check
-npm run build
 npm run tauri:dev
-npm run tauri:build
 ```
+
+Automated tests, static checks, production builds, Rust package tests, desktop
+build verification, and change-specific requirements are defined in the
+[test matrix](docs/test-matrix.md).
