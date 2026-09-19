@@ -80,6 +80,7 @@ export interface TranscriptBlockDto {
   entry_type: EntryKind
   label: string
   title: string
+  timestamp: string | null
   content: string
 }
 

@@ -159,6 +159,7 @@ pub struct TranscriptBlockDto {
     pub entry_type: EntryKindDto,
     pub label: &'static str,
     pub title: &'static str,
+    pub timestamp: Option<String>,
     pub content: Arc<String>,
 }
 
@@ -434,15 +435,17 @@ impl ParsedChatLogDto {
     pub fn from_domain(parsed: &ParsedChatLog, filter: &ChatEntryFilter) -> Self {
         let mut entries = Vec::new();
         let mut transcript_blocks = Vec::new();
-        for entry in parsed
+        for (index, entry) in parsed
             .entries
             .iter()
-            .filter(|entry| filter.allows(entry.kind))
+            .enumerate()
+            .filter(|(_, entry)| filter.allows(entry.kind))
         {
             push_entry_dtos(
                 &mut entries,
                 &mut transcript_blocks,
                 entry.kind,
+                parsed.entry_timestamps.get(index).cloned().flatten(),
                 Arc::new(entry.content.clone()),
             );
         }
@@ -479,17 +482,20 @@ impl ParsedChatLogDto {
 
     pub fn from_domain_owned(parsed: ParsedChatLog, filter: &ChatEntryFilter) -> Self {
         let total_entries = parsed.entries.len();
+        let entry_timestamps = parsed.entry_timestamps;
         let mut entries = Vec::new();
         let mut transcript_blocks = Vec::new();
-        for entry in parsed
+        for (index, entry) in parsed
             .entries
             .into_iter()
-            .filter(|entry| filter.allows(entry.kind))
+            .enumerate()
+            .filter(|(_, entry)| filter.allows(entry.kind))
         {
             push_entry_dtos(
                 &mut entries,
                 &mut transcript_blocks,
                 entry.kind,
+                entry_timestamps.get(index).cloned().flatten(),
                 Arc::new(entry.content),
             );
         }
@@ -534,6 +540,7 @@ fn push_entry_dtos(
     entries: &mut Vec<RenderedEntryDto>,
     transcript_blocks: &mut Vec<TranscriptBlockDto>,
     kind: RenderedEntryKind,
+    timestamp: Option<String>,
     content: Arc<String>,
 ) {
     let label = kind.label();
@@ -546,6 +553,7 @@ fn push_entry_dtos(
         entry_type: EntryKindDto::from(kind),
         label,
         title: label,
+        timestamp,
         content,
     });
 }
@@ -742,7 +750,13 @@ mod tests {
                     content: "session".to_owned(),
                 },
             ],
-            entry_timestamps: vec![None; 5],
+            entry_timestamps: vec![
+                Some("2026-09-18T23:59:58Z".to_owned()),
+                Some("2026-09-19T00:00:02Z".to_owned()),
+                None,
+                Some("2026-09-20T08:15:00+09:00".to_owned()),
+                None,
+            ],
             session_provenance: SessionProvenance::default(),
             parsed_candidates: 5,
             ignored_lines: 3,
@@ -789,6 +803,14 @@ mod tests {
         );
         assert_eq!(dto.entries[0].label, "[YOU]");
         assert_eq!(dto.transcript_blocks[1].title, "[CODEX]");
+        assert_eq!(
+            dto.transcript_blocks[0].timestamp.as_deref(),
+            Some("2026-09-18T23:59:58Z")
+        );
+        assert_eq!(
+            dto.transcript_blocks[1].timestamp.as_deref(),
+            Some("2026-09-19T00:00:02Z")
+        );
         assert!(Arc::ptr_eq(
             &dto.entries[0].content,
             &dto.transcript_blocks[0].content
@@ -805,6 +827,25 @@ mod tests {
                     count: 1,
                 }
             ]
+        );
+    }
+
+    #[test]
+    fn dto_keeps_visible_entries_when_timestamp_vector_is_shorter() {
+        let mut parsed = parsed_log();
+        parsed.entry_timestamps.truncate(1);
+
+        let dto = ParsedChatLogDto::from_domain_owned(parsed, &ChatEntryFilter::all());
+
+        assert_eq!(dto.transcript_blocks.len(), 5);
+        assert_eq!(
+            dto.transcript_blocks[0].timestamp.as_deref(),
+            Some("2026-09-18T23:59:58Z")
+        );
+        assert!(
+            dto.transcript_blocks[1..]
+                .iter()
+                .all(|block| block.timestamp.is_none())
         );
     }
 
@@ -889,6 +930,10 @@ mod tests {
         assert_eq!(json["parsed_chat_log"]["entries"][0]["kind"], "you");
         assert_eq!(json["parsed_chat_log"]["entries"][0]["label"], "[YOU]");
         assert_eq!(
+            json["parsed_chat_log"]["transcript_blocks"][0]["timestamp"],
+            "2026-09-18T23:59:58Z"
+        );
+        assert_eq!(
             json["parsed_chat_log"]["counters"]["visible_entries"],
             json["parsed_chat_log"]["entries"]
                 .as_array()
@@ -960,6 +1005,48 @@ mod tests {
 
         assert_eq!(json["error"]["code"], "parse_file_failed");
         assert_eq!(json["error"]["message"], "permission denied");
+    }
+
+    #[test]
+    fn parsed_response_keeps_each_message_timestamp_across_resumed_dates() {
+        let path = api_test_file("message-timestamps");
+        fs::create_dir_all(path.parent().expect("test parent")).expect("create test parent");
+        fs::write(
+            &path,
+            concat!(
+                r#"{"timestamp":"2026-09-18T23:58:00Z","type":"session_meta","payload":{"id":"11111111-2222-3333-4444-555555555555"}}"#,
+                "\n",
+                r#"{"timestamp":"2026-09-18T23:59:58Z","type":"event_msg","payload":{"type":"user_message","message":"before resume"}}"#,
+                "\n",
+                r#"{"timestamp":"2026-09-20T08:15:00+09:00","type":"event_msg","payload":{"type":"agent_message","message":"after resume"}}"#,
+            ),
+        )
+        .expect("write timestamp fixture");
+
+        let response = parse_selected_file(ParseRequestDto {
+            path: path.to_string_lossy().into_owned(),
+            filter: FilterDto {
+                show_meta: false,
+                ..FilterDto::default()
+            },
+        })
+        .expect("parse timestamp fixture");
+
+        assert_eq!(response.parsed_chat_log.transcript_blocks.len(), 2);
+        assert_eq!(
+            response.parsed_chat_log.transcript_blocks[0]
+                .timestamp
+                .as_deref(),
+            Some("2026-09-18T23:59:58Z")
+        );
+        assert_eq!(
+            response.parsed_chat_log.transcript_blocks[1]
+                .timestamp
+                .as_deref(),
+            Some("2026-09-20T08:15:00+09:00")
+        );
+
+        fs::remove_dir_all(path.parent().expect("test parent")).expect("remove timestamp fixture");
     }
 
     #[test]

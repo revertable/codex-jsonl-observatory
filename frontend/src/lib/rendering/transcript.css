@@ -371,6 +371,14 @@
   font-weight: 700;
 }
 
+.transcript-block-timestamp {
+  margin-left: auto;
+  color: currentColor;
+  font: 500 11px/1.4 var(--mono);
+  opacity: 0.68;
+  white-space: nowrap;
+}
+
 .update-notice[data-status='current'] {
   color: #2f6f4e;
 }
@@ -449,6 +457,12 @@
   background: transparent;
   outline: 1px solid currentColor;
   outline-offset: 2px;
+}
+
+.terminal-block-timestamp {
+  color: currentColor;
+  font: inherit;
+  opacity: 0.72;
 }
 
 .terminal-block-content {

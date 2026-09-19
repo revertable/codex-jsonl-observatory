@@ -39,18 +39,21 @@ const responseWithToolCall: ParseResponseDto = {
         entry_type: 'you',
         label: 'YOU',
         title: 'User',
+        timestamp: '2026-09-18T23:59:58Z',
         content: 'Inspect the session.',
       },
       {
         entry_type: 'codex',
         label: 'CODEX',
         title: 'Assistant',
+        timestamp: '2026-09-19T00:00:02Z',
         content: 'Inspecting.',
       },
       {
         entry_type: 'tool_call',
         label: 'TOOL CALL',
         title: 'read_file',
+        timestamp: null,
         content: 'read_file',
       },
     ],
@@ -102,12 +105,23 @@ test('initial load preserves all observations before applying display filters', 
     loaded.observations.transcript_blocks.map((block) => block.entry_type),
     ['you', 'codex'],
   )
+  assert.deepEqual(
+    loaded.observations.transcript_blocks.map((block) => [block.content, block.timestamp]),
+    [
+      ['Inspect the session.', '2026-09-18T23:59:58Z'],
+      ['Inspecting.', '2026-09-19T00:00:02Z'],
+    ],
+  )
 
   const toolCallsVisible = updateFilter(loaded, 'show_tool_call', true)
 
   assert.deepEqual(
     toolCallsVisible.observations.transcript_blocks.map((block) => block.entry_type),
     ['you', 'codex', 'tool_call'],
+  )
+  assert.deepEqual(
+    toolCallsVisible.observations.transcript_blocks.map((block) => block.timestamp),
+    ['2026-09-18T23:59:58Z', '2026-09-19T00:00:02Z', null],
   )
   assert.deepEqual(toolCallsVisible.all_observations, loaded.all_observations)
 })

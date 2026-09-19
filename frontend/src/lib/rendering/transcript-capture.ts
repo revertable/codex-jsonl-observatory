@@ -5,6 +5,7 @@ import type {
   TranscriptBlockDto,
 } from '../parse-contract'
 import type { TranscriptThemeName } from './transcript-themes'
+import { formatEntryTimestamp } from './entry-timestamp.js'
 
 export interface TranscriptCaptureInput {
   theme: TranscriptThemeName
@@ -52,7 +53,10 @@ function serializeTerminalTranscript(input: TranscriptCaptureInput): string {
   } else {
     input.blocks.forEach((block, index) => {
       const isCollapsed = input.collapsedBlocks[index] ?? false
-      lines.push(`${isCollapsed ? '[>]' : '[v]'} ${terminalDisplayLabel(block)}`)
+      const timestamp = capturedTimestamp(block)
+      lines.push(
+        `${isCollapsed ? '[>]' : '[v]'} ${terminalDisplayLabel(block)}${timestamp === null ? '' : ` · ${timestamp}`}`,
+      )
       if (!isCollapsed) {
         lines.push(' ', block.content)
       } else {
@@ -120,6 +124,10 @@ function appendComponentBlocks(
   blocks.forEach((block, index) => {
     const isCollapsed = collapsedBlocks[index] ?? false
     lines.push(isCollapsed ? '>' : 'v', `[${captureLabel(block.entry_type)}]`)
+    const timestamp = capturedTimestamp(block)
+    if (timestamp !== null) {
+      lines.push(timestamp)
+    }
     if (!isCollapsed) {
       lines.push(block.content)
     }
@@ -142,6 +150,10 @@ function appendReferences(lines: string[], references: ReferencedConversationDto
 function terminalDisplayLabel(block: TranscriptBlockDto): string {
   const sourceLabel = block.label.trim()
   return sourceLabel !== '' ? sourceLabel : `[${captureLabel(block.entry_type)}]`
+}
+
+function capturedTimestamp(block: TranscriptBlockDto): string | null {
+  return formatEntryTimestamp(block.timestamp)?.label ?? null
 }
 
 function displayedEventCounts(eventCounts: ObservedEventCountDto[]): ObservedEventCountDto[] {

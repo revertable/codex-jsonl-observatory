@@ -12,6 +12,7 @@ import type {
   TranscriptBlockDto,
 } from '../src/lib/parse-contract.ts'
 import { serializeTranscript } from '../src/lib/rendering/transcript-capture.ts'
+import { formatEntryTimestamp } from '../src/lib/rendering/entry-timestamp.js'
 import { transcriptScopeChanged } from '../src/lib/rendering/transcript-scope.ts'
 
 const blocks: TranscriptBlockDto[] = [
@@ -19,12 +20,14 @@ const blocks: TranscriptBlockDto[] = [
     entry_type: 'you',
     label: '[YOU]',
     title: '[YOU]',
+    timestamp: null,
     content: 'First line\nSecond line',
   },
   {
     entry_type: 'codex',
     label: '[CODEX]',
     title: '[CODEX]',
+    timestamp: null,
     content: 'Answer',
   },
 ]
@@ -240,23 +243,25 @@ test('capture uses the current frontend filter projection without changing block
 
 test('all frontend filter combinations preserve the selected block order in capture', () => {
   const allKinds: TranscriptBlockDto[] = [
-    { entry_type: 'you', label: '[YOU]', title: '[YOU]', content: 'content-you' },
-    { entry_type: 'codex', label: '[CODEX]', title: '[CODEX]', content: 'content-codex' },
+    { entry_type: 'you', label: '[YOU]', title: '[YOU]', timestamp: null, content: 'content-you' },
+    { entry_type: 'codex', label: '[CODEX]', title: '[CODEX]', timestamp: null, content: 'content-codex' },
     {
       entry_type: 'tool_call',
       label: '[TOOL CALL]',
       title: '[TOOL CALL]',
+      timestamp: null,
       content: 'content-tool-call',
     },
     {
       entry_type: 'tool_result',
       label: '[TOOL RESULT]',
       title: '[TOOL RESULT]',
+      timestamp: null,
       content: 'content-tool-result',
     },
-    { entry_type: 'context', label: '[CONTEXT]', title: '[CONTEXT]', content: 'content-context' },
-    { entry_type: 'task', label: '[TASK]', title: '[TASK]', content: 'content-task' },
-    { entry_type: 'system', label: '[SYSTEM]', title: '[SYSTEM]', content: 'content-system' },
+    { entry_type: 'context', label: '[CONTEXT]', title: '[CONTEXT]', timestamp: null, content: 'content-context' },
+    { entry_type: 'task', label: '[TASK]', title: '[TASK]', timestamp: null, content: 'content-task' },
+    { entry_type: 'system', label: '[SYSTEM]', title: '[SYSTEM]', timestamp: null, content: 'content-system' },
   ]
   const response = responseFixture()
   response.parsed_chat_log.transcript_blocks = allKinds
@@ -304,6 +309,65 @@ test('all frontend filter combinations preserve the selected block order in capt
 
     assert.deepEqual(capturedContents, expectedContents, `filter mask ${mask}`)
   }
+})
+
+test('entry timestamps use local calendar fields and reject missing or invalid values', () => {
+  const source = '2026-09-19T00:00:02Z'
+  const instant = new Date(source)
+  const twoDigits = (value: number) => value.toString().padStart(2, '0')
+  const expected = `${instant.getFullYear()}-${twoDigits(instant.getMonth() + 1)}-${twoDigits(instant.getDate())} ${twoDigits(instant.getHours())}:${twoDigits(instant.getMinutes())}:${twoDigits(instant.getSeconds())}`
+
+  assert.deepEqual(formatEntryTimestamp(source), { datetime: source, label: expected })
+  assert.equal(formatEntryTimestamp(null), null)
+  assert.equal(formatEntryTimestamp(''), null)
+  assert.equal(formatEntryTimestamp('not-a-timestamp'), null)
+  assert.equal(formatEntryTimestamp('2026-09-19T00:00:02'), null)
+})
+
+test('all themes capture each available local timestamp with its original block', () => {
+  const timestampedBlocks: TranscriptBlockDto[] = [
+    {
+      entry_type: 'you',
+      label: '[YOU]',
+      title: '[YOU]',
+      timestamp: '2026-09-18T23:59:58Z',
+      content: 'before resume',
+    },
+    {
+      entry_type: 'codex',
+      label: '[CODEX]',
+      title: '[CODEX]',
+      timestamp: '2026-09-20T08:15:00+09:00',
+      content: 'after resume',
+    },
+    {
+      entry_type: 'tool_result',
+      label: '[TOOL RESULT]',
+      title: '[TOOL RESULT]',
+      timestamp: null,
+      content: 'without timestamp',
+    },
+  ]
+  const expectedLabels = timestampedBlocks
+    .map((block) => formatEntryTimestamp(block.timestamp)?.label ?? null)
+    .filter((label): label is string => label !== null)
+  const themes = ['Terminal Style', 'Markdown Style', 'DM Style', 'DM Style (Dark)'] as const
+
+  themes.forEach((theme) => {
+    const transcript = serializeTranscript({
+      theme,
+      blocks: timestampedBlocks,
+      references: [],
+      observedEventCounts: [],
+      collapsedBlocks: { 1: true },
+    })
+
+    expectedLabels.forEach((label) => {
+      assert.equal(transcript.split(label).length - 1, 1, `${theme}: ${label}`)
+    })
+    assert.equal(transcript.includes('null'), false)
+    assert.equal(transcript.includes('Invalid Date'), false)
+  })
 })
 
 test('transcript scope preserves refresh state but resets collapse when its identity changes', () => {
@@ -357,12 +421,13 @@ function responseFixture(): ParseResponseDto {
     parsed_chat_log: {
       entries: [],
       transcript_blocks: [
-        { entry_type: 'you', label: '[YOU]', title: '[YOU]', content: 'request' },
-        { entry_type: 'codex', label: '[CODEX]', title: '[CODEX]', content: 'answer' },
+        { entry_type: 'you', label: '[YOU]', title: '[YOU]', timestamp: null, content: 'request' },
+        { entry_type: 'codex', label: '[CODEX]', title: '[CODEX]', timestamp: null, content: 'answer' },
         {
           entry_type: 'tool_result',
           label: '[TOOL RESULT]',
           title: '[TOOL RESULT]',
+          timestamp: null,
           content: 'tool output',
         },
       ],

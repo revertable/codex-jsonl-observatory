@@ -52,12 +52,14 @@ impl ParsedChatLog {
     pub fn transcript_blocks(&self) -> Vec<TranscriptBlock> {
         self.entries
             .iter()
-            .map(|entry| {
+            .enumerate()
+            .map(|(index, entry)| {
                 let label = entry.kind.label();
                 TranscriptBlock {
                     entry_type: entry.kind,
                     label,
                     title: label,
+                    timestamp: self.entry_timestamps.get(index).cloned().flatten(),
                     content: entry.content.clone(),
                 }
             })
@@ -223,7 +225,10 @@ mod tests {
                 entry(RenderedEntryKind::You, "hello"),
                 entry(RenderedEntryKind::Codex, "hi"),
             ],
-            entry_timestamps: vec![None; 2],
+            entry_timestamps: vec![
+                Some("2026-09-18T23:59:58Z".to_owned()),
+                Some("2026-09-19T00:00:02Z".to_owned()),
+            ],
             session_provenance: SessionProvenance::default(),
             parsed_candidates: 2,
             ignored_lines: 0,
@@ -238,16 +243,40 @@ mod tests {
                     entry_type: RenderedEntryKind::You,
                     label: "[YOU]",
                     title: "[YOU]",
+                    timestamp: Some("2026-09-18T23:59:58Z".to_owned()),
                     content: "hello".to_owned(),
                 },
                 TranscriptBlock {
                     entry_type: RenderedEntryKind::Codex,
                     label: "[CODEX]",
                     title: "[CODEX]",
+                    timestamp: Some("2026-09-19T00:00:02Z".to_owned()),
                     content: "hi".to_owned(),
                 }
             ]
         );
+    }
+
+    #[test]
+    fn transcript_blocks_keep_entries_when_timestamp_vector_is_shorter() {
+        let parsed = ParsedChatLog {
+            entries: vec![
+                entry(RenderedEntryKind::You, "timestamped"),
+                entry(RenderedEntryKind::Codex, "missing timestamp"),
+            ],
+            entry_timestamps: vec![Some("2026-09-19T01:02:03Z".to_owned())],
+            session_provenance: SessionProvenance::default(),
+            parsed_candidates: 2,
+            ignored_lines: 0,
+            malformed_lines: 0,
+            observed_event_counts: IndexMap::new(),
+        };
+
+        let blocks = parsed.transcript_blocks();
+
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0].timestamp.as_deref(), Some("2026-09-19T01:02:03Z"));
+        assert_eq!(blocks[1].timestamp, None);
     }
 
     #[test]

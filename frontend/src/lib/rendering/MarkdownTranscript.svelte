@@ -2,6 +2,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener'
   import type { ObservedEventCountDto, ReferencedConversationDto, TranscriptBlockDto } from '../parse-contract'
   import type { PublicReleaseStatus } from '../update-check'
+  import { formatEntryTimestamp } from './entry-timestamp'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
   import ConversationReferences from './ConversationReferences.svelte'
@@ -48,7 +49,6 @@
     <h2>Codex Session Observatory</h2>
     {#if !isLoaded}
       <div class="markdown-empty-state">
-        <p>Ready.</p>
         <p>Codex Session Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</p>
         <p>
           Cosmic Horizon Archive
@@ -59,6 +59,7 @@
         {/if}
         <p>Select a local JSONL session to begin.</p>
         <p class="markdown-empty-metadata">Current theme: {theme}</p>
+        <p>Ready.</p>
       </div>
     {/if}
   </header>
@@ -86,6 +87,7 @@
         {#each blocks as block, index}
           {@const label = renderLabelForKind(block.entry_type, block.label)}
           {@const isCollapsed = collapsedBlocks[index] ?? false}
+          {@const timestamp = formatEntryTimestamp(block.timestamp)}
           <section class="markdown-block" data-family={label.family} data-kind={block.entry_type}>
             <button
               type="button"
@@ -95,6 +97,13 @@
             >
               <span class="transcript-toggle-marker" aria-hidden="true">{isCollapsed ? '>' : 'v'}</span>
               <strong>[{label.label}]</strong>
+              {#if timestamp !== null}
+                <time
+                  class="transcript-block-timestamp"
+                  datetime={timestamp.datetime}
+                  title={`Original timestamp: ${timestamp.datetime}`}
+                >{timestamp.label}</time>
+              {/if}
             </button>
             {#if !isCollapsed}
               <pre>{block.content}</pre>

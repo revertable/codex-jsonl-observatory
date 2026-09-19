@@ -2,6 +2,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener'
   import type { ObservedEventCountDto, ReferencedConversationDto, TranscriptBlockDto } from '../parse-contract'
   import type { PublicReleaseStatus } from '../update-check'
+  import { formatEntryTimestamp } from './entry-timestamp'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
   import ConversationReferences from './ConversationReferences.svelte'
@@ -60,8 +61,6 @@
   <div class="terminal-blank" aria-hidden="true"></div>
 
   {#if !isLoaded}
-    <div>Ready.</div>
-    <div class="terminal-blank" aria-hidden="true"></div>
     {#if showIdentityNote}
       <div>Codex Session Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</div>
       <div>Cosmic Horizon Archive&nbsp; <a class="terminal-visit-link" href={COSMIC_HORIZON_URL} onclick={visitCosmicHorizon}>[Visit]</a></div>
@@ -72,6 +71,7 @@
       <div>Select a local JSONL session to begin.</div>
     {/if}
     <div class="terminal-metadata">Current theme: {theme}</div>
+    <div>Ready.</div>
   {:else}
     <div class="terminal-separator">{separator}</div>
     <div class="terminal-blank" aria-hidden="true"></div>
@@ -96,6 +96,7 @@
       {#each blocks as block, index}
         {@const label = renderLabelForKind(block.entry_type, block.label)}
         {@const isCollapsed = collapsedBlocks[index] ?? false}
+        {@const timestamp = formatEntryTimestamp(block.timestamp)}
         <section class="terminal-block" data-family={label.family} data-kind={block.entry_type}>
           <button
             type="button"
@@ -103,7 +104,11 @@
             aria-expanded={!isCollapsed}
             onclick={() => onToggleBlock(index)}
           >
-            {isCollapsed ? '[>]' : '[v]'} {displayLabel(block)}
+            {isCollapsed ? '[>]' : '[v]'} {displayLabel(block)}{#if timestamp !== null}<time
+                class="terminal-block-timestamp"
+                datetime={timestamp.datetime}
+                title={`Original timestamp: ${timestamp.datetime}`}
+              > · {timestamp.label}</time>{/if}
           </button>
           {#if !isCollapsed}
             <pre class="terminal-block-content">{block.content}</pre>
