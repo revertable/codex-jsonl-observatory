@@ -1,17 +1,12 @@
-/**
- * @typedef {object} FormattedEntryTimestamp
- * @property {string} datetime
- * @property {string} label
- */
+export interface FormattedEntryTimestamp {
+  datetime: string
+  label: string
+}
 
 const RFC3339_TIMESTAMP =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
 
-/**
- * @param {string | null} timestamp
- * @returns {FormattedEntryTimestamp | null}
- */
-export function formatEntryTimestamp(timestamp) {
+export function formatEntryTimestamp(timestamp: string | null): FormattedEntryTimestamp | null {
   const source = timestamp?.trim()
   if (!source || !RFC3339_TIMESTAMP.test(source)) {
     return null
@@ -28,7 +23,6 @@ export function formatEntryTimestamp(timestamp) {
   }
 }
 
-/** @param {number} value */
-function twoDigits(value) {
+function twoDigits(value: number): string {
   return value.toString().padStart(2, '0')
 }

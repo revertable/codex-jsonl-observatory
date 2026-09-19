@@ -5,7 +5,7 @@ import type {
   TranscriptBlockDto,
 } from '../parse-contract'
 import type { TranscriptThemeName } from './transcript-themes'
-import { formatEntryTimestamp } from './entry-timestamp.js'
+import { formatEntryTimestamp } from './entry-timestamp.ts'
 
 export interface TranscriptCaptureInput {
   theme: TranscriptThemeName

@@ -16,7 +16,7 @@ use crate::{
     session,
 };
 
-const GENERATOR: &str = "codex-jsonl-observatory";
+const GENERATOR: &str = "codex-session-observatory";
 const FORMAT: &str = "worklog_bundle";
 const FORMAT_VERSION: u64 = 1;
 const INDEX_FILE: &str = "000_index.md";
@@ -792,6 +792,11 @@ mod tests {
         let first = fs::read_to_string(bundle.join("001_143012.md")).expect("first unit");
         let second = fs::read_to_string(bundle.join("002_151830.md")).expect("second unit");
         let index = fs::read_to_string(bundle.join(INDEX_FILE)).expect("index");
+        let manifest: Value = serde_json::from_str(
+            &fs::read_to_string(bundle.join(MANIFEST_FILE)).expect("manifest"),
+        )
+        .expect("manifest json");
+        assert_eq!(manifest["generator"], "codex-session-observatory");
         assert!(first.contains("[YOU]") && first.contains("first response"));
         assert!(!first.contains("second request"));
         assert!(second.contains("second request") && second.contains("second response"));

@@ -12,7 +12,7 @@ import type {
   TranscriptBlockDto,
 } from '../src/lib/parse-contract.ts'
 import { serializeTranscript } from '../src/lib/rendering/transcript-capture.ts'
-import { formatEntryTimestamp } from '../src/lib/rendering/entry-timestamp.js'
+import { formatEntryTimestamp } from '../src/lib/rendering/entry-timestamp.ts'
 import { transcriptScopeChanged } from '../src/lib/rendering/transcript-scope.ts'
 
 const blocks: TranscriptBlockDto[] = [

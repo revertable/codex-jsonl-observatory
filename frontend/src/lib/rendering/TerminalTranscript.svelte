@@ -2,7 +2,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener'
   import type { ObservedEventCountDto, ReferencedConversationDto, TranscriptBlockDto } from '../parse-contract'
   import type { PublicReleaseStatus } from '../update-check'
-  import { formatEntryTimestamp } from './entry-timestamp'
+  import { formatEntryTimestamp } from './entry-timestamp.ts'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
   import ConversationReferences from './ConversationReferences.svelte'
