@@ -14,7 +14,7 @@ Modification is not allowed unless the user explicitly selects the target as cur
 The current work target is this repository:
 
 ```text
-codex-jsonl-observatory
+codex-session-observatory
 ```
 
 Agents may create, edit, and verify files inside this repository only when the task route allows execution.

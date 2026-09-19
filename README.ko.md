@@ -1,16 +1,16 @@
-# Codex JSONL Observatory
+# Codex Session Observatory
 
-[![최신 릴리스](https://img.shields.io/github/v/release/revertable/codex-jsonl-observatory?display_name=tag&label=release)](https://github.com/revertable/codex-jsonl-observatory/releases/latest)
+[![최신 릴리스](https://img.shields.io/github/v/release/revertable/codex-session-observatory?display_name=tag&label=release)](https://github.com/revertable/codex-session-observatory/releases/latest)
 
 **언어:** [English](README.md) | 한국어
 
-Codex JSONL Observatory는 Codex 세션 JSONL 파일을 읽고 버전 관리가 가능한 작업 로그 번들을 내보내는 로컬 데스크톱 도구입니다. Codex CLI와 Codex Windows 앱에서 생성된 세션을 지원하며, Rust, Svelte, Tauri로 구축되어 모든 세션 데이터를 로컬에서 처리합니다.
+Codex Session Observatory는 Codex 세션 JSONL 파일을 읽고 버전 관리가 가능한 작업 로그 번들을 내보내는 로컬 데스크톱 도구입니다. Codex CLI와 Codex Windows 앱에서 생성된 세션을 지원하며, Rust, Svelte, Tauri로 구축되어 모든 세션 데이터를 로컬에서 처리합니다.
 
 대화 기록을 읽거나, 필터링된 대화 내용을 텍스트로 캡처하거나, 전체 세션을 프로젝트 작업 공간·문서·내부 아카이브·저장소에 함께 보관할 수 있는 구조화된 파일로 변환할 때 사용할 수 있습니다.
 
 ## 계보 및 릴리스 상태
 
-Codex JSONL Observatory는 이 제품 계보의 이전 도구인 [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer)를 잇는 2세대 앱입니다. Codex 세션 JSONL 파일을 읽는다는 동일한 목적을 유지하면서, 전체 작업 흐름을 Rust/Svelte/Tauri 기반의 로컬 데스크톱 앱으로 다시 구축했습니다.
+Codex Session Observatory는 이 제품 계보의 이전 도구인 [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer)를 잇는 2세대 앱입니다. Codex 세션 JSONL 파일을 읽는다는 동일한 목적을 유지하면서, 전체 작업 흐름을 Rust/Svelte/Tauri 기반의 로컬 데스크톱 앱으로 다시 구축했습니다.
 
 Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩니다. 별도의 서버 설정, 클라우드 계정, 개발 환경은 필요하지 않습니다.
 
@@ -37,7 +37,7 @@ Windows 포터블 ZIP을 내려받아 압축을 풀고 앱을 실행하면 됩�
 
 세션 ID를 확인할 수 있으면 **Copy Resume Command**가 해당 Codex CLI 재개 명령을 클립보드에 복사합니다.
 
-Observatory는 시작할 때 공개 GitHub Releases API에 인증 없는 요청을 한 번 보내 최신 공개 릴리스와 실행 중인 앱 버전을 비교합니다. 세션 내용, 선택한 경로, 세션 식별자는 전송하지 않습니다. 확인할 수 없거나 버전 형식을 인식할 수 없으면 업데이트 안내 없이 기존 작업을 계속합니다.
+Observatory는 시작할 때 공개 GitHub Releases API에 인증 없는 요청을 한 번 보내 최신 공개 릴리스와 실행 중인 앱 버전을 비교합니다. 더 새로운 공개 릴리스가 있으면 다운로드 링크를 표시하고, 실행 버전이 최신 공개 릴리스와 정확히 같으면 최신 버전임을 안내합니다. 세션 내용, 선택한 경로, 세션 식별자는 전송하지 않습니다. 확인할 수 없거나 버전 형식을 인식할 수 없거나 실행 중인 빌드가 최신 공개 릴리스보다 높으면 릴리스 상태를 표시하지 않고 기존 작업을 계속합니다.
 
 ### 사용자 요청과 주입된 context
 
@@ -92,13 +92,13 @@ build-and-run.bat
 이 스크립트는 설치 프로그램을 만들지 않고 release 애플리케이션을 빌드하고 다음 포터블 압축 파일을 생성한 뒤 앱을 시작합니다.
 
 ```text
-release\Codex-JSONL-Observatory_<version>_windows-x64-portable.zip
+release\Codex-Session-Observatory_<version>_windows-x64-portable.zip
 ```
 
-압축 파일에는 `codex-jsonl-observatory.exe`, `LICENSE`, 영문·한국어가 함께 수록된 `README.txt`가 포함됩니다. 빌드된 앱은 다음 경로에서 시작됩니다.
+압축 파일에는 `codex-session-observatory.exe`, `LICENSE`, 영문·한국어가 함께 수록된 `README.txt`가 포함됩니다. 빌드된 앱은 다음 경로에서 시작됩니다.
 
 ```text
-frontend\src-tauri\target\release\codex-jsonl-observatory.exe
+frontend\src-tauri\target\release\codex-session-observatory.exe
 ```
 
 ## 실행 환경 및 개발

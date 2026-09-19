@@ -31,7 +31,7 @@ export function serializeTranscript(input: TranscriptCaptureInput): string {
 function serializeTerminalTranscript(input: TranscriptCaptureInput): string {
   // The terminal renderer uses `white-space: pre-wrap`, so its structural
   // whitespace is observable through innerText. Preserve that shape here.
-  const lines = ['Codex JSONL Observatory', ' ', ' ', TERMINAL_SEPARATOR, ' ']
+  const lines = ['Codex Session Observatory', ' ', ' ', TERMINAL_SEPARATOR, ' ']
 
   if (input.references.length > 0) {
     lines.push(' ', '')
@@ -71,7 +71,7 @@ function serializeTerminalTranscript(input: TranscriptCaptureInput): string {
 }
 
 function serializeMarkdownTranscript(input: TranscriptCaptureInput): string {
-  const lines = ['MARKDOWN STYLE', '', 'Codex JSONL Observatory']
+  const lines = ['MARKDOWN STYLE', '', 'Codex Session Observatory']
   if (input.references.length > 0) {
     lines.push('')
     appendReferences(lines, input.references)
@@ -92,7 +92,7 @@ function serializeMarkdownTranscript(input: TranscriptCaptureInput): string {
 }
 
 function serializeChatTranscript(input: TranscriptCaptureInput): string {
-  const lines = ['Codex JSONL Observatory', input.theme]
+  const lines = ['Codex Session Observatory', input.theme]
   if (input.references.length > 0) {
     lines.push('')
     appendReferences(lines, input.references)

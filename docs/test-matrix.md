@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document defines the current verification contract for Codex JSONL
+This document defines the current verification contract for Codex Session
 Observatory. Use it to select checks that match the files and behavior changed.
 
 The repository provides one local command that runs the complete automated

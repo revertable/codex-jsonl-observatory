@@ -1,11 +1,23 @@
 export const RELEASES_API_URL =
-  'https://api.github.com/repos/revertable/codex-jsonl-observatory/releases/latest'
+  'https://api.github.com/repos/revertable/codex-session-observatory/releases/latest'
 export const RELEASES_PAGE_URL =
-  'https://github.com/revertable/codex-jsonl-observatory/releases/latest'
+  'https://github.com/revertable/codex-session-observatory/releases/latest'
 
 const DEFAULT_TIMEOUT_MS = 5_000
 
-export interface AvailableUpdate {
+export type PublicReleaseStatus =
+  | {
+      status: 'update-available'
+      currentVersion: string
+      latestVersion: string
+    }
+  | {
+      status: 'current'
+      currentVersion: string
+      latestVersion: string
+    }
+
+interface ReleaseVersion {
   currentVersion: string
   latestVersion: string
 }
@@ -20,11 +32,11 @@ export type UpdateFetch = (
   init: RequestInit,
 ) => Promise<ReleaseResponse>
 
-export async function findAvailableUpdate(
+export async function checkPublicReleaseStatus(
   currentVersion: string,
   fetchRelease: UpdateFetch = globalThis.fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
-): Promise<AvailableUpdate | null> {
+): Promise<PublicReleaseStatus | null> {
   const normalizedCurrent = parseStableVersion(currentVersion)
   if (normalizedCurrent === null) {
     return null
@@ -47,17 +59,27 @@ export async function findAvailableUpdate(
     const payload: unknown = await response.json()
     const tagName = releaseTagName(payload)
     const normalizedLatest = tagName === null ? null : parseStableVersion(tagName)
-    if (
-      normalizedLatest === null ||
-      compareVersions(normalizedLatest.parts, normalizedCurrent.parts) <= 0
-    ) {
+    if (normalizedLatest === null) {
       return null
     }
 
-    return {
+    const versions: ReleaseVersion = {
       currentVersion: normalizedCurrent.version,
       latestVersion: normalizedLatest.version,
     }
+    const comparison = compareVersions(normalizedLatest.parts, normalizedCurrent.parts)
+
+    if (comparison > 0) {
+      return { status: 'update-available', ...versions }
+    }
+
+    if (comparison === 0) {
+      return { status: 'current', ...versions }
+    }
+
+    // A locally running version newer than GitHub's latest public release is
+    // an unpublished build, not evidence that it is the latest public build.
+    return null
   } catch {
     return null
   } finally {

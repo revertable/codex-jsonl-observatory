@@ -32,7 +32,7 @@
   } from './lib/rendering/transcript-themes'
   import type { ApiErrorDto } from './lib/parse-contract'
   import { isSpecializedSession } from './lib/specialized-session'
-  import { findAvailableUpdate, type AvailableUpdate } from './lib/update-check'
+  import { checkPublicReleaseStatus, type PublicReleaseStatus } from './lib/update-check'
 
   let workflow: LoadWorkflowState = createInitialLoadWorkflowState()
   let actionStatusMessage = ''
@@ -42,16 +42,16 @@
   let parentSessionStatusMessage = ''
   let selectedTheme: TranscriptThemeName = 'Terminal Style'
   let collapsedBlocks: Record<number, boolean> = {}
-  let availableUpdate: AvailableUpdate | null = null
+  let publicReleaseStatus: PublicReleaseStatus | null = null
 
   onMount(() => {
     let active = true
 
     void getAppVersion()
-      .then((currentVersion) => findAvailableUpdate(currentVersion))
-      .then((update) => {
+      .then((currentVersion) => checkPublicReleaseStatus(currentVersion))
+      .then((status) => {
         if (active) {
-          availableUpdate = update
+          publicReleaseStatus = status
         }
       })
       .catch(() => {
@@ -391,7 +391,7 @@
         <TerminalTranscript
           theme={selectedTheme}
           isLoaded={workflow.status === 'loaded'}
-          {availableUpdate}
+          {publicReleaseStatus}
           showIdentityNote={workflow.status !== 'loaded'}
           observedEventCounts={workflow.loaded_file.observed_event_counts}
           blocks={workflow.observations.transcript_blocks}
@@ -403,7 +403,7 @@
         <MarkdownTranscript
           theme={selectedTheme}
           isLoaded={workflow.status === 'loaded'}
-          {availableUpdate}
+          {publicReleaseStatus}
           observedEventCounts={workflow.loaded_file.observed_event_counts}
           blocks={workflow.observations.transcript_blocks}
           references={workflow.observations.referenced_conversations}
@@ -414,7 +414,7 @@
         <ChatTranscript
           theme={selectedTheme as 'DM Style' | 'DM Style (Dark)'}
           isLoaded={workflow.status === 'loaded'}
-          {availableUpdate}
+          {publicReleaseStatus}
           observedEventCounts={workflow.loaded_file.observed_event_counts}
           blocks={workflow.observations.transcript_blocks}
           references={workflow.observations.referenced_conversations}

@@ -1,16 +1,16 @@
-# Codex JSONL Observatory
+# Codex Session Observatory
 
-[![Latest release](https://img.shields.io/github/v/release/revertable/codex-jsonl-observatory?display_name=tag&label=release)](https://github.com/revertable/codex-jsonl-observatory/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/revertable/codex-session-observatory?display_name=tag&label=release)](https://github.com/revertable/codex-session-observatory/releases/latest)
 
 **Language:** English | [한국어](README.ko.md)
 
-Codex JSONL Observatory is a local desktop tool for reading Codex session JSONL files and exporting versionable worklog bundles. Supported session sources include Codex CLI and the Codex Windows app. Built with Rust, Svelte, and Tauri, it processes session data locally.
+Codex Session Observatory is a local desktop tool for reading Codex session JSONL files and exporting versionable worklog bundles. Supported session sources include Codex CLI and the Codex Windows app. Built with Rust, Svelte, and Tauri, it processes session data locally.
 
 Use it for transcript reading, capturing a filtered transcript as text, or turning a complete session into structured files that can live with a project workspace, documentation, internal archive, or repository.
 
 ## Lineage and release status
 
-Codex JSONL Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
+Codex Session Observatory is the second-generation successor to [Codex Chat Viewer](https://github.com/revertable/codex-chat-viewer), the earlier tool in this product line. It continues the same problem space of reading Codex session JSONL files while rebuilding the workflow as a Rust/Svelte/Tauri local desktop app.
 
 Just download the Windows portable zip, unzip it, and run the app. No server setup, cloud account, or developer environment is required.
 
@@ -37,7 +37,7 @@ The main transcript presents parsed blocks in the selected reading theme. Role f
 
 When a session ID is available, **Copy Resume Command** copies the corresponding Codex CLI resume command to the clipboard.
 
-On launch, Observatory makes one unauthenticated request to the public GitHub Releases API to compare the latest published release with the running app version. It does not send session content, selected paths, or session identifiers. If the check is unavailable or returns an unrecognized version, the app continues without showing an update notice.
+On launch, Observatory makes one unauthenticated request to the public GitHub Releases API to compare the latest published release with the running app version. It shows a download link when a newer public release is available and confirms when the running version exactly matches the latest public release. It does not send session content, selected paths, or session identifiers. If the check is unavailable, returns an unrecognized version, or the running build is newer than the latest public release, the app continues without showing a release status.
 
 ### Human requests and injected context
 
@@ -92,13 +92,13 @@ build-and-run.bat
 The script builds the release application without generating an installer, creates the following portable archive, and then starts the application:
 
 ```text
-release\Codex-JSONL-Observatory_<version>_windows-x64-portable.zip
+release\Codex-Session-Observatory_<version>_windows-x64-portable.zip
 ```
 
-The archive contains `codex-jsonl-observatory.exe`, `LICENSE`, and a bilingual `README.txt`. The built application is started from:
+The archive contains `codex-session-observatory.exe`, `LICENSE`, and a bilingual `README.txt`. The built application is started from:
 
 ```text
-frontend\src-tauri\target\release\codex-jsonl-observatory.exe
+frontend\src-tauri\target\release\codex-session-observatory.exe
 ```
 
 ## Runtime and development

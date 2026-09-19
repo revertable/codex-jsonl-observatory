@@ -26,7 +26,7 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 }
 
 $releaseDirectory = Join-Path $repositoryRoot 'release'
-$archiveName = "Codex-JSONL-Observatory_${version}_windows-x64-portable.zip"
+$archiveName = "Codex-Session-Observatory_${version}_windows-x64-portable.zip"
 $archivePath = Join-Path $releaseDirectory $archiveName
 
 New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null

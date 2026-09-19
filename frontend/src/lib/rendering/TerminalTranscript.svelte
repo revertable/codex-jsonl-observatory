@@ -1,19 +1,19 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener'
   import type { ObservedEventCountDto, ReferencedConversationDto, TranscriptBlockDto } from '../parse-contract'
-  import type { AvailableUpdate } from '../update-check'
+  import type { PublicReleaseStatus } from '../update-check'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
   import ConversationReferences from './ConversationReferences.svelte'
   import UpdateNotice from './UpdateNotice.svelte'
 
   const COSMIC_HORIZON_URL =
-    'https://riu-salze-studio.gitbook.io/cosmic-horizon?utm_source=codex_jsonl_observatory&utm_medium=desktop_app&utm_campaign=visit_cosmic_horizon'
+    'https://riu-salze-studio.gitbook.io/cosmic-horizon?utm_source=codex_session_observatory&utm_medium=desktop_app&utm_campaign=visit_cosmic_horizon'
 
   interface Props {
     theme: TranscriptThemeName
     isLoaded: boolean
-    availableUpdate: AvailableUpdate | null
+    publicReleaseStatus: PublicReleaseStatus | null
     showIdentityNote: boolean
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
@@ -25,7 +25,7 @@
   let {
     theme,
     isLoaded,
-    availableUpdate,
+    publicReleaseStatus,
     showIdentityNote,
     observedEventCounts,
     blocks,
@@ -56,17 +56,17 @@
 </script>
 
 <div class="terminal-transcript" aria-label="Terminal transcript">
-  <div class="terminal-title">Codex JSONL Observatory</div>
+  <div class="terminal-title">Codex Session Observatory</div>
   <div class="terminal-blank" aria-hidden="true"></div>
 
   {#if !isLoaded}
     <div>Ready.</div>
     <div class="terminal-blank" aria-hidden="true"></div>
     {#if showIdentityNote}
-      <div>Codex JSONL Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</div>
+      <div>Codex Session Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</div>
       <div>Cosmic Horizon Archive&nbsp; <a class="terminal-visit-link" href={COSMIC_HORIZON_URL} onclick={visitCosmicHorizon}>[Visit]</a></div>
-      {#if availableUpdate !== null}
-        <div><UpdateNotice update={availableUpdate} /></div>
+      {#if publicReleaseStatus !== null}
+        <div><UpdateNotice releaseStatus={publicReleaseStatus} presentation="terminal" /></div>
       {/if}
       <div class="terminal-blank" aria-hidden="true"></div>
       <div>Select a local JSONL session to begin.</div>

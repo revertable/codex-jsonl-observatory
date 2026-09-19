@@ -2,7 +2,7 @@
 setlocal
 
 set "FRONTEND_DIR=%~dp0frontend"
-set "APP_EXE=src-tauri\target\release\codex-jsonl-observatory.exe"
+set "APP_EXE=src-tauri\target\release\codex-session-observatory.exe"
 set "OBSERVATORY_RELEASE_EXE=%FRONTEND_DIR%\%APP_EXE%"
 set "PACKAGE_SCRIPT=%~dp0frontend\src-tauri\scripts\package-portable.ps1"
 
@@ -27,7 +27,7 @@ if errorlevel 1 (
 )
 
 call :write_status CHECK DarkCyan "Checking for a running Observatory instance..."
-powershell.exe -NoProfile -Command "$ErrorActionPreference = 'Stop'; $targetPath = [IO.Path]::GetFullPath($env:OBSERVATORY_RELEASE_EXE); $running = Get-CimInstance Win32_Process -Filter 'Name = ''codex-jsonl-observatory.exe''' | Where-Object { $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -ieq $targetPath }; if ($null -ne $running) { exit 2 }"
+powershell.exe -NoProfile -Command "$ErrorActionPreference = 'Stop'; $targetPath = [IO.Path]::GetFullPath($env:OBSERVATORY_RELEASE_EXE); $running = Get-CimInstance Win32_Process -Filter 'Name = ''codex-session-observatory.exe''' | Where-Object { $_.ExecutablePath -and [IO.Path]::GetFullPath($_.ExecutablePath) -ieq $targetPath }; if ($null -ne $running) { exit 2 }"
 set "PROCESS_CHECK_RESULT=%ERRORLEVEL%"
 if "%PROCESS_CHECK_RESULT%"=="2" goto :app_running
 if not "%PROCESS_CHECK_RESULT%"=="0" goto :process_check_failed
@@ -39,7 +39,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-call :write_status BUILD Cyan "Building Codex JSONL Observatory..."
+call :write_status BUILD Cyan "Building Codex Session Observatory..."
 call npm.cmd --silent run tauri:build -- --no-bundle
 if errorlevel 1 goto :build_failed
 
@@ -49,7 +49,7 @@ call :write_status PACKAGE Cyan "Creating portable archive..."
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PACKAGE_SCRIPT%" -ExecutablePath "%CD%\%APP_EXE%"
 if errorlevel 1 goto :package_failed
 
-call :write_status RUN Cyan "Starting Codex JSONL Observatory..."
+call :write_status RUN Cyan "Starting Codex Session Observatory..."
 start "" "%APP_EXE%"
 if errorlevel 1 goto :launch_failed
 
@@ -57,14 +57,14 @@ popd
 exit /b 0
 
 :app_running
-call :write_status BLOCKED Yellow "Codex JSONL Observatory is currently running."
+call :write_status BLOCKED Yellow "Codex Session Observatory is currently running."
 call :write_status ACTION Yellow "Close the application, then run build-and-run.bat again."
 echo Press any key to exit.
 pause >nul
 exit /b 1
 
 :process_check_failed
-call :write_status ERROR Red "Could not determine whether Codex JSONL Observatory is running."
+call :write_status ERROR Red "Could not determine whether Codex Session Observatory is running."
 pause
 exit /b %PROCESS_CHECK_RESULT%
 

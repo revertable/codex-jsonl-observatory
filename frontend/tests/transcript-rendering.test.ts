@@ -54,7 +54,7 @@ test('Terminal capture includes references, separators, expanded content, and co
   assert.equal(
     transcript,
     [
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       ' ',
       ' ',
       '========================================================================',
@@ -97,7 +97,7 @@ test('Markdown capture follows the component text order and omits collapsed cont
     [
       'MARKDOWN STYLE',
       '',
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       '',
       'REFERENCED CHATGPT CONVERSATION',
       '',
@@ -126,7 +126,7 @@ test('DM and DM Dark capture preserve their selected theme labels', () => {
   assert.equal(
     serializeTranscript({ theme: 'DM Style', ...common }),
     [
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       'DM Style',
       'v',
       '[YOU]',
@@ -140,7 +140,7 @@ test('DM and DM Dark capture preserve their selected theme labels', () => {
   assert.equal(
     serializeTranscript({ theme: 'DM Style (Dark)', ...common }),
     [
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       'DM Style (Dark)',
       'v',
       '[YOU]',
@@ -164,7 +164,7 @@ test('empty capture preserves each renderer empty state and sorted event counts'
   assert.equal(
     serializeTranscript({ theme: 'Terminal Style', ...common }),
     [
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       ' ',
       ' ',
       '========================================================================',
@@ -187,7 +187,7 @@ test('empty capture preserves each renderer empty state and sorted event counts'
     [
       'MARKDOWN STYLE',
       '',
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       '',
       'No renderable chat messages found in this JSONL file.',
       '',
@@ -199,7 +199,7 @@ test('empty capture preserves each renderer empty state and sorted event counts'
   assert.equal(
     serializeTranscript({ theme: 'DM Style', ...common }),
     [
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       'DM Style',
       '',
       'No renderable chat messages found in this JSONL file.',
@@ -226,7 +226,7 @@ test('capture uses the current frontend filter projection without changing block
       collapsedBlocks: {},
     }),
     [
-      'Codex JSONL Observatory',
+      'Codex Session Observatory',
       'DM Style',
       'v',
       '[YOU]',

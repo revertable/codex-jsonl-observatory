@@ -371,12 +371,24 @@
   font-weight: 700;
 }
 
+.update-notice[data-status='current'] {
+  color: #2f6f4e;
+}
+
 .update-notice a {
   white-space: nowrap;
 }
 
 .terminal-transcript .update-notice {
   color: #f0c674;
+}
+
+.terminal-transcript .update-notice[data-status='current'] {
+  color: #8bd49c;
+}
+
+.chat-transcript[data-chat-theme='dark'] .update-notice[data-status='current'] {
+  color: #91d7a3;
 }
 
 .terminal-transcript .update-notice a {

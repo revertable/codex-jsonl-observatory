@@ -3,7 +3,8 @@ import test from 'node:test'
 
 import {
   RELEASES_API_URL,
-  findAvailableUpdate,
+  RELEASES_PAGE_URL,
+  checkPublicReleaseStatus,
   type UpdateFetch,
 } from '../src/lib/update-check.ts'
 
@@ -16,27 +17,44 @@ function releaseResponse(tagName: unknown, ok = true): UpdateFetch {
 
 test('reports only a stable public version newer than the running app', async () => {
   assert.deepEqual(
-    await findAvailableUpdate('1.1.3', releaseResponse('v1.2.0')),
+    await checkPublicReleaseStatus('1.1.3', releaseResponse('v1.2.0')),
     {
+      status: 'update-available',
       currentVersion: '1.1.3',
       latestVersion: '1.2.0',
     },
   )
-  assert.equal(await findAvailableUpdate('1.1.3', releaseResponse('v1.1.3')), null)
-  assert.equal(await findAvailableUpdate('1.1.3', releaseResponse('v1.1.2')), null)
+})
+
+test('reports an exact stable match as the current public release', async () => {
+  assert.deepEqual(
+    await checkPublicReleaseStatus('1.2.0', releaseResponse('v1.2.0')),
+    {
+      status: 'current',
+      currentVersion: '1.2.0',
+      latestVersion: '1.2.0',
+    },
+  )
+})
+
+test('does not call an unpublished newer build the current public release', async () => {
+  assert.equal(await checkPublicReleaseStatus('1.2.0', releaseResponse('v1.1.3')), null)
+  assert.equal(await checkPublicReleaseStatus('1.2.0-dev', releaseResponse('v1.2.0')), null)
 })
 
 test('compares major minor and patch components numerically', async () => {
   assert.deepEqual(
-    await findAvailableUpdate('v1.9.9', releaseResponse('v1.10.0')),
+    await checkPublicReleaseStatus('v1.9.9', releaseResponse('v1.10.0')),
     {
+      status: 'update-available',
       currentVersion: '1.9.9',
       latestVersion: '1.10.0',
     },
   )
   assert.deepEqual(
-    await findAvailableUpdate('1.9.9', releaseResponse('2.0.0')),
+    await checkPublicReleaseStatus('1.9.9', releaseResponse('2.0.0')),
     {
+      status: 'update-available',
       currentVersion: '1.9.9',
       latestVersion: '2.0.0',
     },
@@ -55,9 +73,17 @@ test('uses the fixed GitHub endpoint with the recommended media type', async () 
     }
   }
 
-  await findAvailableUpdate('1.1.3', fetchRelease)
+  await checkPublicReleaseStatus('1.1.3', fetchRelease)
 
   assert.equal(requestedUrl, RELEASES_API_URL)
+  assert.equal(
+    RELEASES_API_URL,
+    'https://api.github.com/repos/revertable/codex-session-observatory/releases/latest',
+  )
+  assert.equal(
+    RELEASES_PAGE_URL,
+    'https://github.com/revertable/codex-session-observatory/releases/latest',
+  )
   assert.deepEqual(requestedInit?.headers, {
     Accept: 'application/vnd.github+json',
   })
@@ -65,13 +91,13 @@ test('uses the fixed GitHub endpoint with the recommended media type', async () 
 })
 
 test('ignores malformed versions payloads failures and non-success responses', async () => {
-  assert.equal(await findAvailableUpdate('development', releaseResponse('v1.2.0')), null)
-  assert.equal(await findAvailableUpdate('1.1.3', releaseResponse('v1.2')), null)
-  assert.equal(await findAvailableUpdate('1.1.3', releaseResponse('v1.2.0-beta.1')), null)
-  assert.equal(await findAvailableUpdate('1.1.3', releaseResponse(null)), null)
-  assert.equal(await findAvailableUpdate('1.1.3', releaseResponse('v1.2.0', false)), null)
+  assert.equal(await checkPublicReleaseStatus('development', releaseResponse('v1.2.0')), null)
+  assert.equal(await checkPublicReleaseStatus('1.1.3', releaseResponse('v1.2')), null)
+  assert.equal(await checkPublicReleaseStatus('1.1.3', releaseResponse('v1.2.0-beta.1')), null)
+  assert.equal(await checkPublicReleaseStatus('1.1.3', releaseResponse(null)), null)
+  assert.equal(await checkPublicReleaseStatus('1.1.3', releaseResponse('v1.2.0', false)), null)
   assert.equal(
-    await findAvailableUpdate('1.1.3', async () => {
+    await checkPublicReleaseStatus('1.1.3', async () => {
       throw new Error('offline')
     }),
     null,
@@ -84,5 +110,5 @@ test('aborts a stalled update request without surfacing an error', async () => {
       init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
     })
 
-  assert.equal(await findAvailableUpdate('1.1.3', stalledFetch, 1), null)
+  assert.equal(await checkPublicReleaseStatus('1.1.3', stalledFetch, 1), null)
 })

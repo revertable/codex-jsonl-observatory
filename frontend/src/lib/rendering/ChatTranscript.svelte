@@ -1,19 +1,19 @@
 <script lang="ts">
   import { openUrl } from '@tauri-apps/plugin-opener'
   import type { ObservedEventCountDto, ReferencedConversationDto, TranscriptBlockDto } from '../parse-contract'
-  import type { AvailableUpdate } from '../update-check'
+  import type { PublicReleaseStatus } from '../update-check'
   import { renderLabelForKind } from './render-labels'
   import type { TranscriptThemeName } from './transcript-themes'
   import ConversationReferences from './ConversationReferences.svelte'
   import UpdateNotice from './UpdateNotice.svelte'
 
   const COSMIC_HORIZON_URL =
-    'https://riu-salze-studio.gitbook.io/cosmic-horizon?utm_source=codex_jsonl_observatory&utm_medium=desktop_app&utm_campaign=visit_cosmic_horizon'
+    'https://riu-salze-studio.gitbook.io/cosmic-horizon?utm_source=codex_session_observatory&utm_medium=desktop_app&utm_campaign=visit_cosmic_horizon'
 
   interface Props {
     theme: Extract<TranscriptThemeName, 'DM Style' | 'DM Style (Dark)'>
     isLoaded: boolean
-    availableUpdate: AvailableUpdate | null
+    publicReleaseStatus: PublicReleaseStatus | null
     observedEventCounts: ObservedEventCountDto[]
     blocks: TranscriptBlockDto[]
     references: ReferencedConversationDto[]
@@ -24,7 +24,7 @@
   let {
     theme,
     isLoaded,
-    availableUpdate,
+    publicReleaseStatus,
     observedEventCounts,
     blocks,
     references,
@@ -49,19 +49,19 @@
 >
   <header class="chat-transcript-header">
     <div>
-      <strong>Codex JSONL Observatory</strong>
+      <strong>Codex Session Observatory</strong>
       <span>{theme}</span>
     </div>
     {#if !isLoaded}
       <div class="chat-empty-state">
         <p>Ready.</p>
-        <p>Codex JSONL Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</p>
+        <p>Codex Session Observatory is built from the Cosmic Horizon approach to observable AI-assisted work.</p>
         <p>
           Cosmic Horizon Archive
           <a href={COSMIC_HORIZON_URL} onclick={visitCosmicHorizon}>[Visit]</a>
         </p>
-        {#if availableUpdate !== null}
-          <p><UpdateNotice update={availableUpdate} /></p>
+        {#if publicReleaseStatus !== null}
+          <p><UpdateNotice releaseStatus={publicReleaseStatus} presentation="chat" /></p>
         {/if}
         <p>Select a local JSONL session to begin.</p>
         <p class="chat-empty-metadata">Current theme: {theme}</p>

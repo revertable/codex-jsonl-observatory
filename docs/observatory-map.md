@@ -5,7 +5,7 @@
 Project name:
 
 ```text
-Codex JSONL Observatory
+Codex Session Observatory
 ```
 
 Purpose:
@@ -29,7 +29,7 @@ Original Kotlin/Swing version:
 https://github.com/revertable/codex-chat-viewer
 ```
 
-Codex JSONL Observatory began as a Rust/Svelte port of that idea and now operates as its own Tauri desktop product. The Kotlin/Swing repository remains read-only historical and behavioral reference material, not the current product contract.
+Codex Session Observatory began as a Rust/Svelte port of that idea and now operates as its own Tauri desktop product. The Kotlin/Swing repository remains read-only historical and behavioral reference material, not the current product contract.
 
 ---
 

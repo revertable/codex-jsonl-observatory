@@ -76,7 +76,7 @@
   <div class="toolbar">
     <div class="product-heading">
       <p class="eyebrow">Local transcript viewer</p>
-      <h1 id="app-title">Codex JSONL Observatory</h1>
+      <h1 id="app-title">Codex Session Observatory</h1>
     </div>
 
     <div class="toolbar-actions">

@@ -1524,7 +1524,7 @@ mod tests {
             .as_nanos();
 
         std::env::temp_dir().join(format!(
-            "codex-jsonl-observatory-{name}-{}-{unique}.jsonl",
+            "codex-session-observatory-{name}-{}-{unique}.jsonl",
             std::process::id(),
         ))
     }
