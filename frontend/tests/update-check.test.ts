@@ -37,8 +37,18 @@ test('reports an exact stable match as the current public release', async () => 
   )
 })
 
-test('does not call an unpublished newer build the current public release', async () => {
-  assert.equal(await checkPublicReleaseStatus('1.2.0', releaseResponse('v1.1.3')), null)
+test('reports a stable running version newer than the public release as development', async () => {
+  assert.deepEqual(
+    await checkPublicReleaseStatus('1.2.0', releaseResponse('v1.1.3')),
+    {
+      status: 'development',
+      currentVersion: '1.2.0',
+      latestVersion: '1.1.3',
+    },
+  )
+})
+
+test('does not report an unrecognized development version as a public release status', async () => {
   assert.equal(await checkPublicReleaseStatus('1.2.0-dev', releaseResponse('v1.2.0')), null)
 })
 

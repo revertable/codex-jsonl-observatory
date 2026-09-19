@@ -375,6 +375,10 @@
   color: #2f6f4e;
 }
 
+.update-notice[data-status='development'] {
+  color: #76520f;
+}
+
 .update-notice a {
   white-space: nowrap;
 }
@@ -387,8 +391,16 @@
   color: #8bd49c;
 }
 
+.terminal-transcript .update-notice[data-status='development'] {
+  color: #c5a3ff;
+}
+
 .chat-transcript[data-chat-theme='dark'] .update-notice[data-status='current'] {
   color: #91d7a3;
+}
+
+.chat-transcript[data-chat-theme='dark'] .update-notice[data-status='development'] {
+  color: #d8bd82;
 }
 
 .terminal-transcript .update-notice a {

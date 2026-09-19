@@ -37,7 +37,7 @@ The main transcript presents parsed blocks in the selected reading theme. Role f
 
 When a session ID is available, **Copy Resume Command** copies the corresponding Codex CLI resume command to the clipboard.
 
-On launch, Observatory makes one unauthenticated request to the public GitHub Releases API to compare the latest published release with the running app version. It shows a download link when a newer public release is available and confirms when the running version exactly matches the latest public release. It does not send session content, selected paths, or session identifiers. If the check is unavailable, returns an unrecognized version, or the running build is newer than the latest public release, the app continues without showing a release status.
+On launch, Observatory makes one unauthenticated request to the public GitHub Releases API to compare the latest published release with the running app version. It shows a download link when a newer public release is available, confirms when the running version exactly matches the latest public release, and identifies a valid running version newer than the latest public release as an unpublished development version. It does not send session content, selected paths, or session identifiers. If the check is unavailable or returns an unrecognized version, the app continues without showing a release status.
 
 ### Human requests and injected context
 

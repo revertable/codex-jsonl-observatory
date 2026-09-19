@@ -16,6 +16,11 @@ export type PublicReleaseStatus =
       currentVersion: string
       latestVersion: string
     }
+  | {
+      status: 'development'
+      currentVersion: string
+      latestVersion: string
+    }
 
 interface ReleaseVersion {
   currentVersion: string
@@ -77,9 +82,7 @@ export async function checkPublicReleaseStatus(
       return { status: 'current', ...versions }
     }
 
-    // A locally running version newer than GitHub's latest public release is
-    // an unpublished build, not evidence that it is the latest public build.
-    return null
+    return { status: 'development', ...versions }
   } catch {
     return null
   } finally {
